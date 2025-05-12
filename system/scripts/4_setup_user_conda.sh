@@ -49,7 +49,8 @@ channels:
   - defaults
 auto_activate_base: false
 envs_dirs:
-  - $USER_DATA/.conda/envs
+  - $USER_HOME/.conda/envs
+  - /data/system/apps/shared_envs
 pkgs_dirs:
   - /data/system/cache/conda/pkgs
 EOF
