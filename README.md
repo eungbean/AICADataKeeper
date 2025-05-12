@@ -1,4 +1,4 @@
-# 🚀 AICADataKeeper: NHN CLOUD AI 개발 환경 가이드
+# 🚀 AICADataKeeper
 
 [![KR](https://img.shields.io/badge/lang-한국어-red.svg)](README.md)
 [![EN](https://img.shields.io/badge/lang-English-blue.svg)](README_eng.md)
