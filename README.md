@@ -61,7 +61,7 @@ NHN Cloud AI 서버는 두 가지 중요한 특성이 있습니다:
 cd /data
 
 # 2. 저장소 클론
-git clone https://github.com/eungbean/aica-nhn-environment-manager system
+git clone https://github.com/eungbean/AICADataKeeper
 
 # 3. 스크립트 권한 설정
 chmod +x /data/system/scripts/*.sh
