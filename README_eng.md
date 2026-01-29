@@ -67,6 +67,167 @@ git clone https://github.com/eungbean/aica-nhn-environment-manager system
 chmod +x /data/system/scripts/*.sh
 ```
 
+### 🗂️ Cache Strategy: Hybrid Approach
+
+AICADataKeeper uses a **Config Files + Environment Variables** hybrid strategy for efficient cache management.
+
+#### System Config Files
+- `/etc/conda/.condarc`: Conda package cache path
+- `/etc/pip.conf`: Pip package cache path
+- `/etc/npmrc`: NPM cache path
+
+These config files work in non-login shells (cron, systemd, etc.).
+
+#### Environment Variables (Override Purpose)
+Users can override cache paths with environment variables:
+- `CONDA_PKGS_DIRS`: Conda package cache
+- `PIP_CACHE_DIR`: Pip cache
+- `UV_CACHE_DIR`: uv cache
+
+**Security Improvement**: Previous `PYTHONUSERBASE` sharing was removed due to security vulnerabilities.
+
+### ⚡ uv Package Manager
+
+`uv` is an ultra-fast Python package manager written in Rust (10-100x faster than pip).
+
+#### Installation
+```bash
+sudo /data/system/scripts/setup_uv.sh
+```
+
+#### Usage
+```bash
+# Use uv instead of pip
+uv pip install numpy pandas torch
+
+# Works in virtual environments
+conda activate myenv
+uv pip install package-name
+```
+
+#### Shared Cache
+uv cache is stored at `/data/system/cache/uv` and shared among all users.
+
+### 🔒 ACL-Based Permission Model
+
+For security, we use **ACL (Access Control Lists)** instead of `chmod 777`.
+
+#### Apply Permissions
+```bash
+sudo /data/system/scripts/setup_permissions.sh
+```
+
+This script performs:
+- Apply ACL to shared cache directories (`setfacl -d -m g:gpu-users:rwx`)
+- Set setgid bit (`chmod 2775`) for group inheritance
+- Safely migrate from `chmod 777`
+
+#### Check Permissions
+```bash
+getfacl /data/system/cache/pip
+```
+
+### 🛠️ Sudoers for Non-Admin Users
+
+Non-admin users can perform specific admin tasks (without password).
+
+#### Allowed Commands
+```bash
+# Clean cache
+sudo /data/system/scripts/clean_cache.sh --all
+
+# Check disk usage
+sudo df -h /data
+```
+
+#### Setup
+```bash
+sudo /data/system/scripts/setup_sudoers.sh
+```
+
+This creates `/etc/sudoers.d/aica-datakeeper` file to grant permissions safely.
+
+### 🔄 Auto-Recovery Service
+
+A systemd service that automatically restores environment after server reboot.
+
+#### Register User
+```bash
+# Add new user to auto-recovery targets
+sudo /data/system/scripts/register_user.sh username gpu-users
+```
+
+Registered users are stored in `/data/system/config/users.txt`.
+
+#### Manual Recovery
+```bash
+# Full recovery (global env + all registered users)
+sudo /data/system/scripts/auto_recovery.sh
+
+# Dry-run (show plan without execution)
+sudo /data/system/scripts/auto_recovery.sh --dry-run
+```
+
+#### Check Recovery Log
+```bash
+tail -f /var/log/aica-recovery.log
+```
+
+**Note**: systemd service can only be configured on actual servers (manual execution only on macOS dev environment).
+
+### 📊 Disk Usage Alerts
+
+Generates alerts when disk usage exceeds threshold.
+
+#### Manual Execution
+```bash
+# Default threshold 80%
+sudo /data/system/scripts/disk_alert.sh
+
+# Custom threshold
+sudo /data/system/scripts/disk_alert.sh --threshold 90
+
+# Dry-run (don't write to log)
+sudo /data/system/scripts/disk_alert.sh --threshold 80 --dry-run
+```
+
+#### Cron Automation (Optional)
+Check disk usage every hour:
+```bash
+echo '0 * * * * /data/system/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+```
+
+#### Check Log
+```bash
+cat /var/log/aica-disk-alert.log
+```
+
+### 🧙 Interactive Admin Wizard
+
+Menu-based TUI integrating all setup tasks.
+
+#### Run
+```bash
+sudo /data/system/scripts/setup_wizard.sh
+```
+
+#### Menu Items
+1. Install Global Environment
+2. Add New User
+3. Setup Permissions
+4. Configure Auto-Recovery
+5. Test Configuration
+6. Setup Cache Config
+7. Setup uv
+8. Exit
+
+#### List Options (For Testing)
+```bash
+/data/system/scripts/setup_wizard.sh --list-options
+```
+
+**Note**: Automatically falls back to text menu if dialog/whiptail not available.
+
 ## 📚 Scenario-Based Guides
 
 ### 🔄 Restoring the Environment After Server Restart

@@ -70,6 +70,167 @@ git clone https://github.com/eungbean/AICADataKeeper
 chmod +x /data/system/scripts/*.sh
 ```
 
+### 🗂️ 캐시 전략: Hybrid Approach
+
+AICADataKeeper는 효율적인 캐시 관리를 위해 **Config Files + Environment Variables** 하이브리드 전략을 사용합니다.
+
+#### 시스템 설정 파일
+- `/etc/conda/.condarc`: Conda 패키지 캐시 경로
+- `/etc/pip.conf`: Pip 패키지 캐시 경로
+- `/etc/npmrc`: NPM 캐시 경로
+
+이 설정 파일들은 non-login shell(cron, systemd 등)에서도 동작합니다.
+
+#### 환경 변수 (Override 용도)
+사용자별 환경변수로 캐시 경로를 override할 수 있습니다:
+- `CONDA_PKGS_DIRS`: Conda 패키지 캐시
+- `PIP_CACHE_DIR`: Pip 캐시
+- `UV_CACHE_DIR`: uv 캐시
+
+**보안 개선**: 이전 버전의 `PYTHONUSERBASE` 공유는 보안 취약점으로 제거되었습니다.
+
+### ⚡ uv 패키지 관리자
+
+`uv`는 Rust로 작성된 초고속 Python 패키지 관리자입니다 (pip보다 10-100배 빠름).
+
+#### 설치
+```bash
+sudo /data/system/scripts/setup_uv.sh
+```
+
+#### 사용법
+```bash
+# pip 대신 uv 사용
+uv pip install numpy pandas torch
+
+# 가상환경에서도 동작
+conda activate myenv
+uv pip install package-name
+```
+
+#### 공유 캐시
+uv 캐시는 `/data/system/cache/uv`에 저장되어 모든 사용자가 공유합니다.
+
+### 🔒 ACL 기반 권한 모델
+
+보안을 위해 `chmod 777` 대신 **ACL(Access Control Lists)**을 사용합니다.
+
+#### 권한 설정 적용
+```bash
+sudo /data/system/scripts/setup_permissions.sh
+```
+
+이 스크립트는 다음 작업을 수행합니다:
+- 공유 캐시 디렉토리에 ACL 적용 (`setfacl -d -m g:gpu-users:rwx`)
+- setgid bit 설정 (`chmod 2775`)으로 그룹 권한 상속
+- 기존 `chmod 777` 권한을 안전하게 마이그레이션
+
+#### 권한 확인
+```bash
+getfacl /data/system/cache/pip
+```
+
+### 🛠️ 비관리자 사용자를 위한 Sudoers
+
+비관리자 사용자도 특정 관리 작업을 수행할 수 있습니다 (비밀번호 입력 없이).
+
+#### 허용된 명령어
+```bash
+# 캐시 정리
+sudo /data/system/scripts/clean_cache.sh --all
+
+# 디스크 사용량 확인
+sudo df -h /data
+```
+
+#### 설정 방법
+```bash
+sudo /data/system/scripts/setup_sudoers.sh
+```
+
+이 명령은 `/etc/sudoers.d/aica-datakeeper` 파일을 생성하여 안전하게 권한을 부여합니다.
+
+### 🔄 자동 복구 서비스
+
+서버 재부팅 후 환경을 자동으로 복구하는 systemd 서비스입니다.
+
+#### 사용자 등록
+```bash
+# 신규 사용자를 자동 복구 대상에 추가
+sudo /data/system/scripts/register_user.sh username gpu-users
+```
+
+등록된 사용자는 `/data/system/config/users.txt`에 저장됩니다.
+
+#### 수동 복구 실행
+```bash
+# 전체 복구 (글로벌 환경 + 모든 등록 사용자)
+sudo /data/system/scripts/auto_recovery.sh
+
+# Dry-run (실제 실행하지 않고 계획만 확인)
+sudo /data/system/scripts/auto_recovery.sh --dry-run
+```
+
+#### 복구 로그 확인
+```bash
+tail -f /var/log/aica-recovery.log
+```
+
+**참고**: systemd 서비스는 실제 서버에서만 설정 가능합니다 (macOS 개발 환경에서는 수동 실행만 가능).
+
+### 📊 디스크 사용량 알림
+
+디스크 사용량이 임계치를 초과하면 알림을 생성합니다.
+
+#### 수동 실행
+```bash
+# 기본 임계치 80%
+sudo /data/system/scripts/disk_alert.sh
+
+# 사용자 정의 임계치
+sudo /data/system/scripts/disk_alert.sh --threshold 90
+
+# Dry-run (로그 파일에 기록하지 않음)
+sudo /data/system/scripts/disk_alert.sh --threshold 80 --dry-run
+```
+
+#### Cron 자동화 (선택 사항)
+매시간 디스크 사용량 확인:
+```bash
+echo '0 * * * * /data/system/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+```
+
+#### 로그 확인
+```bash
+cat /var/log/aica-disk-alert.log
+```
+
+### 🧙 대화형 관리자 위자드
+
+모든 설정 작업을 통합한 메뉴 기반 TUI입니다.
+
+#### 실행
+```bash
+sudo /data/system/scripts/setup_wizard.sh
+```
+
+#### 메뉴 항목
+1. Install Global Environment
+2. Add New User
+3. Setup Permissions
+4. Configure Auto-Recovery
+5. Test Configuration
+6. Setup Cache Config
+7. Setup uv
+8. Exit
+
+#### 메뉴 목록 확인 (테스트용)
+```bash
+/data/system/scripts/setup_wizard.sh --list-options
+```
+
+**참고**: dialog 또는 whiptail이 없으면 자동으로 텍스트 메뉴로 fallback합니다.
+
 ## 📚 상황별 가이드
 
 ### 🔄 서버 재시작 후 환경 복구하기
