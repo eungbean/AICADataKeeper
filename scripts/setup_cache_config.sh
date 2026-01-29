@@ -36,7 +36,7 @@ else
 # System-wide conda configuration
 # Package cache directory (shared across all users)
 pkgs_dirs:
-  - /data/system/cache/conda/pkgs
+  - /data/cache/conda/pkgs
 EOF
   
   chmod 644 "$CONDA_CONFIG_FILE"
@@ -56,7 +56,7 @@ else
   cat > "$PIP_CONFIG_FILE" << 'EOF'
 # System-wide pip configuration
 [global]
-cache-dir = /data/system/cache/pip
+cache-dir = /data/cache/pip
 EOF
   
   chmod 644 "$PIP_CONFIG_FILE"
@@ -75,7 +75,7 @@ else
   
   cat > "$NPM_CONFIG_FILE" << 'EOF'
 # System-wide npm configuration
-cache=/data/system/cache/npm
+cache=/data/cache/npm
 EOF
   
   chmod 644 "$NPM_CONFIG_FILE"

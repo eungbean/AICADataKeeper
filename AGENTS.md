@@ -147,21 +147,21 @@ Only grant specific commands, never `NOPASSWD: ALL`:
 
 ```bash
 # /etc/sudoers.d/aica-datakeeper
-Cmnd_Alias CACHE_MGMT = /data/system/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 %gpu-users ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
 ```
 
 ### Environment Variables
 
-Global environment variables defined in `/data/system/config/global_env.sh`:
+Global environment variables defined in `/data/config/global_env.sh`:
 
 ```bash
 # Cache paths
-export SYSTEM_CACHE_DIR="/data/system/cache"
-export PIP_CACHE_DIR="/data/system/cache/pip"
-export CONDA_PKGS_DIRS="/data/system/cache/conda/pkgs"
-export UV_CACHE_DIR="/data/system/cache/uv"
+export SYSTEM_CACHE_DIR="/data/cache"
+export PIP_CACHE_DIR="/data/cache/pip"
+export CONDA_PKGS_DIRS="/data/cache/conda/pkgs"
+export UV_CACHE_DIR="/data/cache/uv"
 
 # AI model paths
 export TORCH_HOME="/data/models/torch"
@@ -184,10 +184,10 @@ sudo adduser <username>
 sudo usermod -aG gpu-users <username>
 
 # 2. Setup user environment (automated)
-sudo /data/system/scripts/setup_new_user.sh <username> gpu-users
+sudo /data/scripts/setup_new_user.sh <username> gpu-users
 
 # 3. Register for auto-recovery
-sudo /data/system/scripts/register_user.sh <username> gpu-users
+sudo /data/scripts/register_user.sh <username> gpu-users
 
 # Result:
 # - /home/<username> -> /data/users/<username> (symlink)
@@ -203,14 +203,14 @@ sudo /data/system/scripts/register_user.sh <username> gpu-users
 systemctl start aica-recovery.service
 
 # Manual (if needed)
-sudo /data/system/scripts/auto_recovery.sh
+sudo /data/scripts/auto_recovery.sh
 ```
 
 Recovery sequence:
-1. Install/verify Miniconda at `/data/system/apps/miniconda3`
+1. Install/verify Miniconda at `/data/apps/miniconda3`
 2. Setup global environment variables at `/etc/profile.d/global_envs.sh`
 3. Create/restore cache directories with proper permissions
-4. For each registered user in `/data/system/config/users.txt`:
+4. For each registered user in `/data/config/users.txt`:
    - Restore home directory symlink
    - Restore conda configuration
    - Fix file permissions
@@ -219,24 +219,24 @@ Recovery sequence:
 
 ```bash
 # Clean all caches
-sudo /data/system/scripts/clean_cache.sh --all
+sudo /data/scripts/clean_cache.sh --all
 
 # Clean specific caches
-sudo /data/system/scripts/clean_cache.sh --conda
-sudo /data/system/scripts/clean_cache.sh --pip
-sudo /data/system/scripts/clean_cache.sh --torch
-sudo /data/system/scripts/clean_cache.sh --hf
+sudo /data/scripts/clean_cache.sh --conda
+sudo /data/scripts/clean_cache.sh --pip
+sudo /data/scripts/clean_cache.sh --torch
+sudo /data/scripts/clean_cache.sh --hf
 ```
 
 ### Disk Monitoring
 
 ```bash
 # Manual check
-/data/system/scripts/disk_alert.sh --threshold 80 --dry-run
+/data/scripts/disk_alert.sh --threshold 80 --dry-run
 
 # Automated (via cron)
 # Add to /etc/cron.hourly/ or root crontab:
-0 * * * * /data/system/scripts/disk_alert.sh --threshold 80
+0 * * * * /data/scripts/disk_alert.sh --threshold 80
 ```
 
 ---
@@ -247,7 +247,7 @@ sudo /data/system/scripts/clean_cache.sh --hf
 
 All scripts must pass syntax check:
 ```bash
-bash -n /data/system/scripts/*.sh
+bash -n /data/scripts/*.sh
 ```
 
 ### Acceptance Criteria
@@ -257,15 +257,15 @@ Each feature has verification commands (see `.sisyphus/plans/aica-improvement.md
 **Example - Permission Setup**:
 ```bash
 # Verify ACL
-getfacl /data/system/cache/pip | grep "default:group:gpu-users:rwx"
+getfacl /data/cache/pip | grep "default:group:gpu-users:rwx"
 # Expected: match found
 
 # Verify setgid
-ls -ld /data/system/cache/pip | grep "^d.*s"
+ls -ld /data/cache/pip | grep "^d.*s"
 # Expected: 's' or 'S' in group execute position
 
 # Test non-admin cache access
-sudo -u testuser sudo -n /data/system/scripts/clean_cache.sh --help
+sudo -u testuser sudo -n /data/scripts/clean_cache.sh --help
 # Expected: exit code 0 (NOPASSWD works)
 ```
 
@@ -287,26 +287,27 @@ After deployment:
 ```bash
 # 1. Clone repository to persistent storage
 cd /data
-git clone <repo-url> system
+git clone <repo-url> AICADataKeeper
+cd AICADataKeeper
 
 # 2. Make scripts executable
-chmod +x /data/system/scripts/*.sh
+chmod +x scripts/*.sh
 
 # 3. Run global setup
-sudo /data/system/scripts/setup_global_after_startup.sh gpu-users
+sudo ./scripts/setup_global_after_startup.sh gpu-users
 
 # 4. Setup permissions
-sudo /data/system/scripts/setup_permissions.sh
-sudo /data/system/scripts/setup_sudoers.sh
+sudo ./scripts/setup_permissions.sh
+sudo ./scripts/setup_sudoers.sh
 
 # 5. Install uv (optional)
-sudo /data/system/scripts/setup_uv.sh
+sudo ./scripts/setup_uv.sh
 
 # 6. Enable auto-recovery service
 sudo systemctl enable --now aica-recovery.service
 
 # 7. Setup disk monitoring (optional)
-echo '0 * * * * /data/system/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+echo '0 * * * * /data/scripts/disk_alert.sh --threshold 80' | sudo crontab -
 ```
 
 ### User Addition
@@ -315,8 +316,8 @@ echo '0 * * * * /data/system/scripts/disk_alert.sh --threshold 80' | sudo cronta
 # Standard user onboarding
 sudo adduser alice
 sudo usermod -aG gpu-users alice
-sudo /data/system/scripts/setup_new_user.sh alice gpu-users
-sudo /data/system/scripts/register_user.sh alice gpu-users
+sudo /data/scripts/setup_new_user.sh alice gpu-users
+sudo /data/scripts/register_user.sh alice gpu-users
 ```
 
 ### Migration from Old Setup
@@ -328,7 +329,7 @@ If migrating from chmod 777 setup:
 getfacl -R /data > /backup/acl-backup-$(date +%Y%m%d).txt
 
 # 2. Apply new permission model
-sudo /data/system/scripts/setup_permissions.sh
+sudo /data/scripts/setup_permissions.sh
 
 # 3. Verify no breakage
 # Test conda/pip installations for existing users
@@ -345,7 +346,7 @@ sudo /data/system/scripts/setup_permissions.sh
 
 **Fixed in Improvement Plan**:
 - ~~`setup_global_after_startup.sh` undefined variable `$ENV_DST`~~ → FIXED
-- ~~Cache path inconsistency (`/data/cache/` vs `/data/system/cache/`)~~ → FIXED
+- ~~Cache path inconsistency (`/data/cache/` vs `/data/cache/`)~~ → FIXED
 - ~~chmod 777 security issues~~ → REPLACED with ACL
 - ~~No auto-recovery service~~ → ADDED systemd service
 
@@ -373,7 +374,7 @@ sudo /data/system/scripts/setup_permissions.sh
 
 ### Performance Considerations
 
-- **Cache Size**: Monitor `/data/system/cache/` - can grow to 10s of GB
+- **Cache Size**: Monitor `/data/cache/` - can grow to 10s of GB
 - **Model Size**: HuggingFace models can be 5-20GB each
 - **Disk I/O**: Multiple users downloading simultaneously = bottleneck
 - **Recommendation**: Use `ionice` for large operations during peak hours
@@ -389,26 +390,26 @@ sudo /data/system/scripts/setup_permissions.sh
 
 **Symlink Broken**:
 ```bash
-sudo /data/system/scripts/3_create_user_data_dir.sh <username> gpu-users
+sudo /data/scripts/3_create_user_data_dir.sh <username> gpu-users
 ```
 
 **Permission Denied on Cache**:
 ```bash
-sudo /data/system/scripts/setup_permissions.sh
+sudo /data/scripts/setup_permissions.sh
 # or
-sudo chmod 2775 /data/system/cache/<specific-cache>
-sudo setfacl -m g:gpu-users:rwx /data/system/cache/<specific-cache>
+sudo chmod 2775 /data/cache/<specific-cache>
+sudo setfacl -m g:gpu-users:rwx /data/cache/<specific-cache>
 ```
 
 **Conda Environment Not Found**:
 ```bash
-sudo /data/system/scripts/4_setup_user_conda.sh <username> gpu-users
+sudo /data/scripts/4_setup_user_conda.sh <username> gpu-users
 ```
 
 **Service Failed to Start**:
 ```bash
 journalctl -u aica-recovery.service -n 50
-# Check /data/system/scripts/auto_recovery.sh logs
+# Check /data/scripts/auto_recovery.sh logs
 ```
 
 ---
@@ -422,14 +423,14 @@ journalctl -u aica-recovery.service -n 50
 - Review disk alert logs: `/var/log/aica-disk-alert.log`
 
 **Monthly**:
-- Clean unused caches: `sudo /data/system/scripts/clean_cache.sh --all`
-- Review user list: `cat /data/system/config/users.txt`
+- Clean unused caches: `sudo /data/scripts/clean_cache.sh --all`
+- Review user list: `cat /data/config/users.txt`
 - Check for obsolete user data: `ls /data/users/`
 
 **Quarterly**:
 - Backup critical data: `rsync -av /data/users/ /backup/users/`
 - Update Miniconda: Coordinate with all users first
-- Review ACL policies: `getfacl /data/system/cache/*`
+- Review ACL policies: `getfacl /data/cache/*`
 
 ### Upgrade Path
 
@@ -437,7 +438,7 @@ When new scripts are added:
 1. Pull latest changes: `cd /data/system && git pull`
 2. Review changelog/commits
 3. Test in isolated environment if possible
-4. Apply changes: `chmod +x /data/system/scripts/*.sh`
+4. Apply changes: `chmod +x /data/scripts/*.sh`
 5. Verify: Run with `--dry-run` flags where available
 
 ---

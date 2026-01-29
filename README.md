@@ -67,7 +67,7 @@ cd /data
 git clone https://github.com/eungbean/AICADataKeeper
 
 # 3. 스크립트 권한 설정
-chmod +x /data/system/scripts/*.sh
+chmod +x /data/scripts/*.sh
 ```
 
 ### 🗂️ 캐시 전략: Hybrid Approach
@@ -95,7 +95,7 @@ AICADataKeeper는 효율적인 캐시 관리를 위해 **Config Files + Environm
 
 #### 설치
 ```bash
-sudo /data/system/scripts/setup_uv.sh
+sudo /data/scripts/setup_uv.sh
 ```
 
 #### 사용법
@@ -109,7 +109,7 @@ uv pip install package-name
 ```
 
 #### 공유 캐시
-uv 캐시는 `/data/system/cache/uv`에 저장되어 모든 사용자가 공유합니다.
+uv 캐시는 `/data/cache/uv`에 저장되어 모든 사용자가 공유합니다.
 
 ### 🔒 ACL 기반 권한 모델
 
@@ -117,7 +117,7 @@ uv 캐시는 `/data/system/cache/uv`에 저장되어 모든 사용자가 공유�
 
 #### 권한 설정 적용
 ```bash
-sudo /data/system/scripts/setup_permissions.sh
+sudo /data/scripts/setup_permissions.sh
 ```
 
 이 스크립트는 다음 작업을 수행합니다:
@@ -127,7 +127,7 @@ sudo /data/system/scripts/setup_permissions.sh
 
 #### 권한 확인
 ```bash
-getfacl /data/system/cache/pip
+getfacl /data/cache/pip
 ```
 
 ### 🛠️ 비관리자 사용자를 위한 Sudoers
@@ -137,7 +137,7 @@ getfacl /data/system/cache/pip
 #### 허용된 명령어
 ```bash
 # 캐시 정리
-sudo /data/system/scripts/clean_cache.sh --all
+sudo /data/scripts/clean_cache.sh --all
 
 # 디스크 사용량 확인
 sudo df -h /data
@@ -145,7 +145,7 @@ sudo df -h /data
 
 #### 설정 방법
 ```bash
-sudo /data/system/scripts/setup_sudoers.sh
+sudo /data/scripts/setup_sudoers.sh
 ```
 
 이 명령은 `/etc/sudoers.d/aica-datakeeper` 파일을 생성하여 안전하게 권한을 부여합니다.
@@ -157,18 +157,18 @@ sudo /data/system/scripts/setup_sudoers.sh
 #### 사용자 등록
 ```bash
 # 신규 사용자를 자동 복구 대상에 추가
-sudo /data/system/scripts/register_user.sh username gpu-users
+sudo /data/scripts/register_user.sh username gpu-users
 ```
 
-등록된 사용자는 `/data/system/config/users.txt`에 저장됩니다.
+등록된 사용자는 `/data/config/users.txt`에 저장됩니다.
 
 #### 수동 복구 실행
 ```bash
 # 전체 복구 (글로벌 환경 + 모든 등록 사용자)
-sudo /data/system/scripts/auto_recovery.sh
+sudo /data/scripts/auto_recovery.sh
 
 # Dry-run (실제 실행하지 않고 계획만 확인)
-sudo /data/system/scripts/auto_recovery.sh --dry-run
+sudo /data/scripts/auto_recovery.sh --dry-run
 ```
 
 #### 복구 로그 확인
@@ -185,19 +185,19 @@ tail -f /var/log/aica-recovery.log
 #### 수동 실행
 ```bash
 # 기본 임계치 80%
-sudo /data/system/scripts/disk_alert.sh
+sudo /data/scripts/disk_alert.sh
 
 # 사용자 정의 임계치
-sudo /data/system/scripts/disk_alert.sh --threshold 90
+sudo /data/scripts/disk_alert.sh --threshold 90
 
 # Dry-run (로그 파일에 기록하지 않음)
-sudo /data/system/scripts/disk_alert.sh --threshold 80 --dry-run
+sudo /data/scripts/disk_alert.sh --threshold 80 --dry-run
 ```
 
 #### Cron 자동화 (선택 사항)
 매시간 디스크 사용량 확인:
 ```bash
-echo '0 * * * * /data/system/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+echo '0 * * * * /data/scripts/disk_alert.sh --threshold 80' | sudo crontab -
 ```
 
 #### 로그 확인
@@ -211,7 +211,7 @@ cat /var/log/aica-disk-alert.log
 
 #### 실행
 ```bash
-sudo /data/system/scripts/setup_wizard.sh
+sudo /data/scripts/setup_wizard.sh
 ```
 
 #### 메뉴 항목
@@ -226,7 +226,7 @@ sudo /data/system/scripts/setup_wizard.sh
 
 #### 메뉴 목록 확인 (테스트용)
 ```bash
-/data/system/scripts/setup_wizard.sh --list-options
+/data/scripts/setup_wizard.sh --list-options
 ```
 
 **참고**: dialog 또는 whiptail이 없으면 자동으로 텍스트 메뉴로 fallback합니다.
@@ -242,7 +242,7 @@ sudo /data/system/scripts/setup_wizard.sh
 sudo -i
 
 # 2. 글로벌 환경 복구 (Miniconda 설치 + 환경변수 설정)
-/data/system/scripts/setup_global_after_startup.sh
+/data/scripts/setup_global_after_startup.sh
 
 # 3. 로그아웃 후 다시 로그인하여 환경변수 적용
 exit
@@ -265,7 +265,7 @@ sudo adduser <사용자명>
 sudo usermod -aG <그룹명> <사용자명>
 
 # 3. 사용자 환경 설정 (홈 디렉토리 연결, Conda 설정, 권한 설정)
-sudo /data/system/scripts/setup_new_user.sh <사용자명> <그룹명>
+sudo /data/scripts/setup_new_user.sh <사용자명> <그룹명>
 
 # 4. 테스트: 해당 사용자로 로그인
 su - <사용자명>
@@ -285,18 +285,18 @@ su - <사용자명>
 
 ```bash
 # 1. 사용자 환경 전체 복구 (모든 설정 한번에)
-sudo /data/system/scripts/setup_new_user.sh <사용자명> <그룹명>
+sudo /data/scripts/setup_new_user.sh <사용자명> <그룹명>
 
 # 또는 개별 작업 수행:
 
 # 2a. 홈 디렉토리 링크만 복구
-sudo /data/system/scripts/3_create_user_data_dir.sh <사용자명> <그룹명>
+sudo /data/scripts/3_create_user_data_dir.sh <사용자명> <그룹명>
 
 # 2b. Conda 환경만 복구
-sudo /data/system/scripts/4_setup_user_conda.sh <사용자명> <그룹명>
+sudo /data/scripts/4_setup_user_conda.sh <사용자명> <그룹명>
 
 # 2c. 파일 권한만 수정
-sudo /data/system/scripts/5_fix_user_permission.sh <사용자명> <그룹명>
+sudo /data/scripts/5_fix_user_permission.sh <사용자명> <그룹명>
 ```
 
 > **참고**: `setup_new_user.sh`는 새로운 사용자 설정뿐만 아니라 기존 사용자의 환경 복구에도 안전하게 사용할 수 있습니다. 기존 데이터는 보존됩니다.
@@ -307,13 +307,13 @@ sudo /data/system/scripts/5_fix_user_permission.sh <사용자명> <그룹명>
 
 ```bash
 # 캐시 정리 (디스크 공간 확보)
-sudo /data/system/scripts/clean_cache.sh --all
+sudo /data/scripts/clean_cache.sh --all
 
 # 특정 캐시만 정리
-sudo /data/system/scripts/clean_cache.sh --conda  # Conda 캐시
-sudo /data/system/scripts/clean_cache.sh --pip    # Pip 패키지 캐시
-sudo /data/system/scripts/clean_cache.sh --torch  # PyTorch 모델 캐시
-sudo /data/system/scripts/clean_cache.sh --hf     # HuggingFace 캐시
+sudo /data/scripts/clean_cache.sh --conda  # Conda 캐시
+sudo /data/scripts/clean_cache.sh --pip    # Pip 패키지 캐시
+sudo /data/scripts/clean_cache.sh --torch  # PyTorch 모델 캐시
+sudo /data/scripts/clean_cache.sh --hf     # HuggingFace 캐시
 ```
 
 ## 🚶 사용자 가이드
@@ -360,9 +360,9 @@ conda env list
 
 | 문제 | 해결 방법 |
 |------|----------|
-| 🔗 홈 디렉토리 심볼릭 링크 깨짐 | `sudo /data/system/scripts/3_create_user_data_dir.sh <사용자명> <그룹명>` |
-| 🐍 Conda 환경 문제 | `sudo /data/system/scripts/4_setup_user_conda.sh <사용자명> <그룹명>` |
-| 🔒 파일 권한 문제 | `sudo /data/system/scripts/5_fix_user_permission.sh <사용자명> <그룹명>` |
+| 🔗 홈 디렉토리 심볼릭 링크 깨짐 | `sudo /data/scripts/3_create_user_data_dir.sh <사용자명> <그룹명>` |
+| 🐍 Conda 환경 문제 | `sudo /data/scripts/4_setup_user_conda.sh <사용자명> <그룹명>` |
+| 🔒 파일 권한 문제 | `sudo /data/scripts/5_fix_user_permission.sh <사용자명> <그룹명>` |
 | 🌐 환경 변수 로드 안 됨 | `source /etc/profile.d/global_envs.sh` |
 
 ### 🔒 권한 문제
@@ -394,7 +394,7 @@ sudo chmod 777 /data/cache/pip
 7. `setup_global_after_startup.sh`: 시스템 재부팅 후 글로벌 환경 복구
 8. `clean_cache.sh`: 캐시 정리 및 디스크 공간 확보
 
-이 스크립트들은 `/data/system/scripts/` 경로에 있으며, 필요에 따라 개별적으로 실행할 수 있습니다.
+이 스크립트들은 `/data/scripts/` 경로에 있으며, 필요에 따라 개별적으로 실행할 수 있습니다.
 
 ## ⚠️ 시스템 위험성 및 대응 방안
 
@@ -412,7 +412,7 @@ sudo chmod 777 /data/cache/pip
 - **위험**: 공유 캐시/모델 디렉토리는 여러 사용자가 접근 가능하므로 악성 코드나 패키지가 설치될 위험이 있습니다.
 - **대응**:
   - 신뢰할 수 있는 소스의 패키지만 설치하세요.
-  - 정기적으로 사용자 권한을 점검하세요: `sudo /data/system/scripts/5_fix_user_permission.sh <사용자명>`
+  - 정기적으로 사용자 권한을 점검하세요: `sudo /data/scripts/5_fix_user_permission.sh <사용자명>`
 
 ### 3. 리소스 경합 문제 ⚡
 

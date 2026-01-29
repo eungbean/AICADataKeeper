@@ -11,9 +11,9 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 캐시 경로 설정
-MINICONDA_PATH="/data/system/apps/miniconda3"
-CONDA_CACHE="/data/system/cache/conda/pkgs"
-PIP_CACHE="/data/system/cache/pip"
+MINICONDA_PATH="/data/apps/miniconda3"
+CONDA_CACHE="/data/cache/conda/pkgs"
+PIP_CACHE="/data/cache/pip"
 TORCH_CACHE="/data/models/torch"
 HF_CACHE="/data/models/huggingface"
 

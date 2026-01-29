@@ -24,12 +24,12 @@ fi
 
 # Define shared directories
 CACHE_DIRS=(
-  "/data/system/cache/pip"
-  "/data/system/cache/conda/pkgs"
-  "/data/system/cache/npm"
-  "/data/system/cache/yarn"
-  "/data/system/cache/python"
-  "/data/system/cache/uv"
+  "/data/cache/pip"
+  "/data/cache/conda/pkgs"
+  "/data/cache/npm"
+  "/data/cache/yarn"
+  "/data/cache/python"
+  "/data/cache/uv"
 )
 
 MODEL_DIRS=(

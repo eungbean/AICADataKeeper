@@ -52,11 +52,11 @@
 
 ```
 Script 2 REQUIRES:
-- /data/system/config/global_env.sh exists
+- /data/config/global_env.sh exists
 - FAILS if missing
 
 Script 4 REQUIRES:
-- Miniconda installed (/data/system/apps/miniconda3/)
+- Miniconda installed (/data/apps/miniconda3/)
 - /data/users/<user> exists (script 3 creates it)
 - FAILS if either missing
 
@@ -142,7 +142,7 @@ Standard permissions:
 File: `/etc/sudoers.d/aica-datakeeper`
 
 ```bash
-Cmnd_Alias CACHE_MGMT = /data/system/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 %gpu-users ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
 ```
@@ -170,7 +170,7 @@ sudo ./setup_new_user.sh testuser gpu-users
 sudo ./setup_new_user.sh testuser gpu-users  # Should not fail
 
 # Verify ACL applied
-getfacl /data/system/cache/pip | grep "group:gpu-users:rwx"
+getfacl /data/cache/pip | grep "group:gpu-users:rwx"
 
 # Verify sudoers syntax
 visudo -c -f /etc/sudoers.d/aica-datakeeper

@@ -6,7 +6,7 @@ set -e
 
 USERNAME=$1
 GROUPNAME=${2:-users}
-USERS_FILE="/data/system/config/users.txt"
+USERS_FILE="/data/config/users.txt"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "[ERROR] 이 스크립트는 root 권한으로 실행해야 합니다."

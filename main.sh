@@ -70,8 +70,8 @@ show_disk_usage() {
   if sudo -n df -h /data 2>/dev/null; then
     echo ""
     echo "[캐시 사용량]"
-    if [ -d /data/system/cache ]; then
-      du -sh /data/system/cache/* 2>/dev/null || echo "캐시 정보를 가져올 수 없습니다."
+    if [ -d /data/cache ]; then
+      du -sh /data/cache/* 2>/dev/null || echo "캐시 정보를 가져올 수 없습니다."
     fi
     
     echo ""
@@ -105,28 +105,28 @@ clean_cache_menu() {
   
   case $choice in
     1)
-      if sudo -n /data/system/scripts/clean_cache.sh --conda 2>/dev/null; then
+      if sudo -n /data/scripts/clean_cache.sh --conda 2>/dev/null; then
         echo "[성공] Conda 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     2)
-      if sudo -n /data/system/scripts/clean_cache.sh --pip 2>/dev/null; then
+      if sudo -n /data/scripts/clean_cache.sh --pip 2>/dev/null; then
         echo "[성공] Pip 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     3)
-      if sudo -n /data/system/scripts/clean_cache.sh --torch 2>/dev/null; then
+      if sudo -n /data/scripts/clean_cache.sh --torch 2>/dev/null; then
         echo "[성공] PyTorch 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     4)
-      if sudo -n /data/system/scripts/clean_cache.sh --hf 2>/dev/null; then
+      if sudo -n /data/scripts/clean_cache.sh --hf 2>/dev/null; then
         echo "[성공] HuggingFace 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
@@ -136,7 +136,7 @@ clean_cache_menu() {
       echo "정말 모든 캐시를 정리하시겠습니까? [y/N]"
       read -p "> " confirm
       if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        if sudo -n /data/system/scripts/clean_cache.sh --all 2>/dev/null; then
+        if sudo -n /data/scripts/clean_cache.sh --all 2>/dev/null; then
           echo "[성공] 모든 캐시가 정리되었습니다."
         else
           echo "[실패] 캐시 정리 권한이 없습니다."
@@ -205,9 +205,9 @@ show_package_guide() {
   echo "  장점: pip보다 10-100배 빠름"
   echo ""
   echo "=== 캐시 경로 ==="
-  echo "- Conda: /data/system/cache/conda/pkgs"
-  echo "- Pip: /data/system/cache/pip"
-  echo "- uv: /data/system/cache/uv"
+  echo "- Conda: /data/cache/conda/pkgs"
+  echo "- Pip: /data/cache/pip"
+  echo "- uv: /data/cache/uv"
   echo ""
   echo "=== 주의사항 ==="
   echo "- 신뢰할 수 있는 소스에서만 설치하세요"

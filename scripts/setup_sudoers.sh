@@ -24,7 +24,7 @@ fi
 SUDOERS_CONTENT="# AICADataKeeper sudoers configuration
 # Allow $GROUPNAME to run specific maintenance commands without password
 
-Cmnd_Alias CACHE_MGMT = /data/system/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 
 %$GROUPNAME ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
@@ -61,7 +61,7 @@ echo "[INFO] Sudoers configuration completed!"
 echo "[INFO] ============================================"
 echo ""
 echo "[INFO] Users in group '$GROUPNAME' can now run:"
-echo "  - sudo /data/system/scripts/clean_cache.sh"
+echo "  - sudo /data/scripts/clean_cache.sh"
 echo "  - sudo /usr/bin/df"
 echo ""
-echo "[INFO] Test with: sudo -u <username> sudo -n /data/system/scripts/clean_cache.sh --help"
+echo "[INFO] Test with: sudo -u <username> sudo -n /data/scripts/clean_cache.sh --help"

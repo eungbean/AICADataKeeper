@@ -5,19 +5,19 @@
 GROUPNAME=${2:-users}
 
 # 캐시 폴더가 없다면 먼저 생성하기
-mkdir -p /data/system/cache/{pip,conda/pkgs,npm,yarn,python}
+mkdir -p /data/cache/{pip,conda/pkgs,npm,yarn,python}
 mkdir -p /data/models/{torch,huggingface,comfyui,flux}
 
 # 캐시 폴더 소유자 및 권한 설정 (모든 사용자가 읽기/쓰기 가능하도록)
-chmod -R 777 /data/system/cache/{pip,conda/pkgs,npm,yarn,python}
+chmod -R 777 /data/cache/{pip,conda/pkgs,npm,yarn,python}
 chmod -R 777 /data/models/{torch,huggingface,comfyui,flux}
 
 # 캐시 폴더 소유자 설정 (root가 소유하되 모든 사용자가 사용 가능)
-chown -R root:$GROUPNAME /data/system/cache/{pip,conda/pkgs,npm,yarn,python}
+chown -R root:$GROUPNAME /data/cache/{pip,conda/pkgs,npm,yarn,python}
 chown -R root:$GROUPNAME /data/models/{torch,huggingface,comfyui,flux}
 
 set -e
-GLOBAL_ENV="/data/system/config/global_env.sh"
+GLOBAL_ENV="/data/config/global_env.sh"
 ENV_DST="/etc/profile.d/global_envs.sh"
 
 if [ "$(id -u)" -ne 0 ]; then

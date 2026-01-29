@@ -246,31 +246,31 @@ function menu_test_config {
   
   # 테스트 3: Miniconda 설치 확인
   echo "[TEST 3] Miniconda 설치 확인..."
-  if [ -d /data/system/apps/miniconda3 ]; then
-    echo "  ✓ PASS: /data/system/apps/miniconda3 존재"
+  if [ -d /data/apps/miniconda3 ]; then
+    echo "  ✓ PASS: /data/apps/miniconda3 존재"
     ((PASS_COUNT++))
   else
-    echo "  ✗ FAIL: /data/system/apps/miniconda3 없음"
+    echo "  ✗ FAIL: /data/apps/miniconda3 없음"
     ((FAIL_COUNT++))
   fi
   
   # 테스트 4: 사용자 레지스트리 확인
   echo "[TEST 4] 사용자 레지스트리 확인..."
-  if [ -f /data/system/config/users.txt ]; then
-    echo "  ✓ PASS: /data/system/config/users.txt 존재"
+  if [ -f /data/config/users.txt ]; then
+    echo "  ✓ PASS: /data/config/users.txt 존재"
     ((PASS_COUNT++))
   else
-    echo "  ✗ FAIL: /data/system/config/users.txt 없음"
+    echo "  ✗ FAIL: /data/config/users.txt 없음"
     ((FAIL_COUNT++))
   fi
   
   # 테스트 5: 캐시 디렉토리 확인
   echo "[TEST 5] 캐시 디렉토리 확인..."
-  if [ -d /data/system/cache ]; then
-    echo "  ✓ PASS: /data/system/cache 존재"
+  if [ -d /data/cache ]; then
+    echo "  ✓ PASS: /data/cache 존재"
     ((PASS_COUNT++))
   else
-    echo "  ✗ FAIL: /data/system/cache 없음"
+    echo "  ✗ FAIL: /data/cache 없음"
     ((FAIL_COUNT++))
   fi
   

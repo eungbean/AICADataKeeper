@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-USERS_FILE="/data/system/config/users.txt"
+USERS_FILE="/data/config/users.txt"
 LOG_FILE="/var/log/aica-recovery.log"
 DRY_RUN=false
 

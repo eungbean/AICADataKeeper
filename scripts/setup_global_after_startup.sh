@@ -7,7 +7,7 @@ set -e
 # 스크립트 위치 기준 절대 경로 설정
 GROUPNAME=$1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MINICONDA_PATH="/data/system/apps/miniconda3"
+MINICONDA_PATH="/data/apps/miniconda3"
 ENV_DST="/etc/profile.d/global_envs.sh"
 
 if [ "$(id -u)" -ne 0 ]; then

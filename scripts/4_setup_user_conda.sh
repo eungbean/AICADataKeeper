@@ -9,7 +9,7 @@ GROUPNAME=${2:-users}
 
 USER_HOME="/home/$USERNAME"
 USER_DATA="/data/users/$USERNAME"
-MINICONDA_PATH="/data/system/apps/miniconda3"
+MINICONDA_PATH="/data/apps/miniconda3"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "[ERROR] 이 스크립트는 root 권한으로 실행해야 합니다."
@@ -50,9 +50,9 @@ channels:
 auto_activate_base: false
 envs_dirs:
   - $USER_HOME/.conda/envs
-  - /data/system/apps/shared_envs
+  - /data/apps/shared_envs
 pkgs_dirs:
-  - /data/system/cache/conda/pkgs
+  - /data/cache/conda/pkgs
 EOF
 
 chown "$USERNAME:$GROUPNAME" "$USER_DATA/.condarc"

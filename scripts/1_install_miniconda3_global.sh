@@ -1,6 +1,6 @@
 #!/bin/bash
 # [01] 글로벌 Miniconda3 설치
-# 역할: 서버 전체에서 사용할 글로벌 Miniconda3를 /data/system/apps/miniconda3에 설치
+# 역할: 서버 전체에서 사용할 글로벌 Miniconda3를 /data/apps/miniconda3에 설치
 
 set -e
 
@@ -10,7 +10,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-MINICONDA_PATH=${1:-"/data/system/apps/miniconda3"}
+MINICONDA_PATH=${1:-"/data/apps/miniconda3"}
 MINICONDA_INSTALLER="Miniconda3-latest-Linux-x86_64.sh"
 MINICONDA_URL="https://repo.anaconda.com/miniconda/$MINICONDA_INSTALLER"
 DOWNLOAD_PATH="/tmp/$MINICONDA_INSTALLER"
@@ -42,7 +42,7 @@ $MINICONDA_PATH/bin/conda config --system --set channel_priority flexible
 $MINICONDA_PATH/bin/conda config --system --prepend channels conda-forge
 
 # 공유 캐시 디렉토리 생성
-mkdir -p /data/system/cache/conda/pkgs
-chmod 777 /data/system/cache/conda/pkgs
+mkdir -p /data/cache/conda/pkgs
+chmod 2775 /data/cache/conda/pkgs  # setgid bit for group inheritance
 
 echo "[INFO] Miniconda 설치 완료: $MINICONDA_PATH"

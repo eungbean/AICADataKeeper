@@ -1,15 +1,15 @@
 #!/bin/bash
-# /data/system/shared_envs.sh
+# /data/config/global_env.sh
 # 모든 사용자를 위한 공통 환경 변수 설정 파일
 
 # 캐시 경로 설정
-export SYSTEM_CACHE_DIR="/data/system/cache"
-export PIP_CACHE_DIR="/data/system/cache/pip"
-export CONDA_PKGS_DIRS="/data/system/cache/conda/pkgs"
+export SYSTEM_CACHE_DIR="/data/cache"
+export PIP_CACHE_DIR="/data/cache/pip"
+export CONDA_PKGS_DIRS="/data/cache/conda/pkgs"
 export CONDA_ENVS_PATH="$HOME/conda/envs"
-export UV_CACHE_DIR="/data/system/cache/uv"
-export npm_config_cache="/data/system/cache/npm"
-export YARN_CACHE_FOLDER="/data/system/cache/yarn"
+export UV_CACHE_DIR="/data/cache/uv"
+export npm_config_cache="/data/cache/npm"
+export YARN_CACHE_FOLDER="/data/cache/yarn"
 # AI 관련 캐시
 export MODELS_DIR="/data/models"
 export TORCH_HOME="/data/models/torch"
