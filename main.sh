@@ -112,14 +112,8 @@ ui_menu_item() {
   echo -e "    ${C_PRIMARY}${num}${C_RESET}  ${C_TEXT}${label}${C_RESET}  ${C_MUTED}${desc}${C_RESET}"
 }
 
-ui_prompt() {
-  echo -ne "  ${C_MUTED}›${C_RESET} "
-}
-
 ui_wait() {
-  echo ""
-  echo -ne "  ${C_MUTED}계속하려면 Enter...${C_RESET}"
-  read -r
+  $DIALOG_CMD --msgbox "계속하려면 OK를 누르세요" 5 40
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -213,8 +207,9 @@ admin_initial_setup() {
       fi
     fi
     
-    if echo "$CHOICES" | grep -qE "ADMIN|STORAGE|FOLDERS|ENV"; then
-      local GROUP_LIST=$(getent group | cut -d: -f1 | grep -vE "^(root|daemon|bin|sys|adm|tty|disk|lp|mail|news|uucp|man|proxy|kmem|dialout|fax|voice|cdrom|floppy|tape|sudo|audio|dip|www-data|backup|operator|list|irc|src|gnats|shadow|utmp|video|sasl|plugdev|staff|games|users|nogroup|systemd|netdev|crontab|messagebus|input|kvm|render|sgx|_ssh|lxd|docker|rdma|ntp|ssl-cert|syslog|uuidd)$" | sort)
+     if echo "$CHOICES" | grep -qE "ADMIN|STORAGE|FOLDERS|ENV"; then
+       local ALL_USERS=$(getent passwd | cut -d: -f1 | tr '\n' '|' | sed 's/|$//')
+       local GROUP_LIST=$(getent group | cut -d: -f1 | grep -vE "^(root|daemon|bin|sys|adm|tty|disk|lp|mail|news|uucp|man|proxy|kmem|dialout|fax|voice|cdrom|floppy|tape|sudo|audio|dip|www-data|backup|operator|list|irc|src|gnats|shadow|utmp|video|sasl|plugdev|staff|games|users|nogroup|systemd|netdev|crontab|messagebus|input|kvm|render|sgx|_ssh|lxd|docker|rdma|ntp|ssl-cert|syslog|uuidd|$ALL_USERS)$" | sort)
       
       local -a MENU_ITEMS=()
       if [ -n "$NEW_GROUPNAME" ]; then
@@ -234,17 +229,20 @@ admin_initial_setup() {
         return
       fi
       
-      GROUPNAME=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
-        --title " 그룹 선택 " \
-        --radiolist "\n권한을 할당할 그룹 선택:" 15 50 6 \
-        "${MENU_ITEMS[@]}" \
-        3>&1 1>&2 2>&3)
-      [ $? -ne 0 ] && return
-      
-      if [ -z "$GROUPNAME" ]; then
-        $DIALOG_CMD --clear --msgbox "그룹을 선택하세요." 7 30
-        return
-      fi
+       GROUPNAME=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
+         --title " 그룹 선택 " \
+         --checklist "\n권한을 할당할 그룹 선택:\n\n↑↓ 이동 | Space 선택 | Enter 확인" 17 55 6 \
+         "${MENU_ITEMS[@]}" \
+         3>&1 1>&2 2>&3)
+       [ $? -ne 0 ] && return
+       
+       if [ -z "$GROUPNAME" ]; then
+         $DIALOG_CMD --clear --msgbox "최소 하나의 그룹을 선택하세요." 7 35
+         return
+       fi
+       
+       # Use first selected group as primary (for chown operations)
+       GROUPNAME=$(echo "$GROUPNAME" | tr -d '"' | awk '{print $1}')
     fi
     
     if [ -n "$NEW_GROUPNAME" ]; then
@@ -489,201 +487,283 @@ _run_initial_setup() {
 }
 
 admin_add_user() {
-  ui_header
-  ui_title "사용자 추가"
-  ui_subtitle "새 사용자 계정 생성 및 환경 설정"
-  echo ""
+  local USERNAME=""
   
-  echo -ne "  ${C_MUTED}사용자명${C_RESET}: "
-  read -r USERNAME
-  if [ -z "$USERNAME" ]; then
-    ui_error "사용자명을 입력하세요"
-    ui_wait
-    return 1
-  fi
-  
-  if id "$USERNAME" &>/dev/null; then
-    ui_warn "사용자 '$USERNAME' 이미 존재"
-    echo -ne "  ${C_MUTED}환경 설정만 진행할까요? [y/N]${C_RESET}: "
-    read -r CONTINUE
-    if [ "$CONTINUE" != "y" ] && [ "$CONTINUE" != "Y" ]; then
+  while [ -z "$USERNAME" ]; do
+    USERNAME=$($DIALOG_CMD --clear --inputbox "사용자명을 입력하세요:" 8 40 "" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then
       return 0
     fi
-  else
-    ui_info "사용자 생성 중..."
-    adduser "$USERNAME" || {
-      ui_error "사용자 생성 실패"
-      ui_wait
-      return 1
-    }
-    ui_success "사용자 '$USERNAME' 생성됨"
+    if [ -z "$USERNAME" ]; then
+      $DIALOG_CMD --clear --msgbox "사용자명을 입력하세요." 7 30
+    fi
+  done
+  
+   if id "$USERNAME" &>/dev/null; then
+     $DIALOG_CMD --clear --yesno "사용자 '$USERNAME' 이미 존재합니다.\n환경 설정만 진행할까요?" 8 45
+     if [ $? -ne 0 ]; then
+       return 0
+     fi
+   else
+     $DIALOG_CMD --infobox "사용자 생성 중..." 3 25
+     adduser --disabled-password --gecos "" "$USERNAME" >/dev/null 2>&1 || {
+       $DIALOG_CMD --clear --msgbox "사용자 생성 실패" 6 25
+       return 1
+     }
+   fi
+  
+  # Build group list for checklist (exclude system groups and personal groups)
+  local ALL_USERS=$(getent passwd | cut -d: -f1 | tr '\n' '|' | sed 's/|$//')
+  local GROUP_LIST=$(getent group | cut -d: -f1 | grep -vE "^(root|daemon|bin|sys|adm|tty|disk|lp|mail|news|uucp|man|proxy|kmem|dialout|fax|voice|cdrom|floppy|tape|sudo|audio|dip|www-data|backup|operator|list|irc|src|gnats|shadow|utmp|video|sasl|plugdev|staff|games|users|nogroup|systemd|netdev|crontab|messagebus|input|kvm|render|sgx|_ssh|lxd|docker|rdma|ntp|ssl-cert|syslog|uuidd|$ALL_USERS)$" | sort)
+
+  local -a GROUP_ITEMS=()
+  for g in $GROUP_LIST; do
+    GROUP_ITEMS+=("$g" "$g" "off")
+  done
+
+  if [ ${#GROUP_ITEMS[@]} -eq 0 ]; then
+    $DIALOG_CMD --clear --msgbox "사용 가능한 그룹이 없습니다.\n먼저 초기 설정에서 그룹을 생성하세요." 8 50
+    return 1
   fi
+
+  local SELECTED_GROUPS=""
+  while [ -z "$SELECTED_GROUPS" ]; do
+    SELECTED_GROUPS=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
+      --title " 그룹 선택 " \
+      --checklist "\n사용자를 추가할 그룹을 선택하세요:\n\n↑↓ 이동 | Space 선택 | Enter 확인" 17 55 6 \
+      "${GROUP_ITEMS[@]}" \
+      3>&1 1>&2 2>&3)
+
+    if [ $? -ne 0 ]; then
+      return 0
+    fi
+
+    if [ -z "$SELECTED_GROUPS" ]; then
+      $DIALOG_CMD --clear --msgbox "최소 하나의 그룹을 선택하세요." 7 35
+    fi
+  done
+
+  # Remove quotes and get first group as primary
+  SELECTED_GROUPS=$(echo "$SELECTED_GROUPS" | tr -d '"')
+  GROUPNAME=$(echo "$SELECTED_GROUPS" | awk '{print $1}')
   
-  echo ""
-  echo -ne "  ${C_MUTED}그룹명 ${C_DIM}(gpu-users)${C_RESET}: "
-  read -r GROUPNAME
-  GROUPNAME=${GROUPNAME:-gpu-users}
+  $DIALOG_CMD --infobox "그룹에 추가 중..." 3 25
+  for grp in $SELECTED_GROUPS; do
+    usermod -aG "$grp" "$USERNAME"
+  done
   
-  ui_info "그룹에 추가 중..."
-  usermod -aG "$GROUPNAME" "$USERNAME"
-  ui_success "그룹 '$GROUPNAME'에 추가됨"
-  
-  echo ""
-  ui_divider
-  echo ""
-  ui_title "SSH 키 설정"
-  echo ""
-  ui_menu_item "1" "공개키 붙여넣기" "기존 키 사용"
-  ui_menu_item "2" "새 키 쌍 생성" "새로 생성"
-  ui_menu_item "3" "건너뛰기" "나중에 설정"
-  echo ""
-  ui_prompt
-  read -r SSH_CHOICE
+  SSH_CHOICE=$($DIALOG_CMD --clear --menu "SSH 키 설정" 12 50 3 \
+    1 "공개키 붙여넣기 (기존 키 사용)" \
+    2 "새 키 쌍 생성" \
+    3 "건너뛰기 (나중에 설정)" \
+    3>&1 1>&2 2>&3)
+  if [ $? -ne 0 ]; then
+    SSH_CHOICE=3
+  fi
   
   USER_HOME="/data/users/$USERNAME"
   SSH_DIR="$USER_HOME/.ssh"
   
   case $SSH_CHOICE in
     1)
-      echo ""
-      ui_info "공개키를 붙여넣으세요 (Enter 후 Ctrl+D):"
       mkdir -p "$SSH_DIR"
-      cat > "$SSH_DIR/authorized_keys"
-      chmod 700 "$SSH_DIR"
-      chmod 600 "$SSH_DIR/authorized_keys"
-      chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
-      ui_success "SSH 공개키 등록됨"
+      touch /tmp/ssh_key_input.txt
+      $DIALOG_CMD --clear --editbox /tmp/ssh_key_input.txt 20 70 2>/tmp/ssh_key_output.txt
+      if [ $? -eq 0 ] && [ -s /tmp/ssh_key_output.txt ]; then
+        cat /tmp/ssh_key_output.txt > "$SSH_DIR/authorized_keys"
+        chmod 700 "$SSH_DIR"
+        chmod 600 "$SSH_DIR/authorized_keys"
+        chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
+      fi
+      rm -f /tmp/ssh_key_input.txt /tmp/ssh_key_output.txt
       ;;
     2)
-      echo ""
-      echo -ne "  ${C_MUTED}키 타입 ${C_DIM}(ed25519)${C_RESET}: "
-      read -r KEY_TYPE
-      KEY_TYPE=${KEY_TYPE:-ed25519}
+        echo ""
+        KEY_TYPE=$($DIALOG_CMD --clear --menu "SSH 키 타입 선택" 12 50 3 \
+          "ed25519" "Ed25519 (권장, 빠르고 안전)" \
+          "rsa" "RSA 4096-bit (호환성 좋음)" \
+          "ecdsa" "ECDSA (타원곡선)" \
+          3>&1 1>&2 2>&3)
+        if [ $? -ne 0 ]; then
+          KEY_TYPE="ed25519"
+        fi
       
-      mkdir -p "$SSH_DIR"
-      ssh-keygen -t "$KEY_TYPE" -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
-      cat "$SSH_DIR/id_$KEY_TYPE.pub" >> "$SSH_DIR/authorized_keys"
+       mkdir -p "$SSH_DIR"
+       if [ "$KEY_TYPE" = "rsa" ]; then
+         ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
+       else
+         ssh-keygen -t "$KEY_TYPE" -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
+       fi
+       cat "$SSH_DIR/id_$KEY_TYPE.pub" >> "$SSH_DIR/authorized_keys"
       chmod 700 "$SSH_DIR"
       chmod 600 "$SSH_DIR/authorized_keys"
       chmod 600 "$SSH_DIR/id_$KEY_TYPE"
       chmod 644 "$SSH_DIR/id_$KEY_TYPE.pub"
       chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
       
-      echo ""
-      ui_success "SSH 키 쌍 생성됨"
-      ui_warn "개인키를 사용자에게 안전하게 전달하세요:"
-      echo -e "    ${C_MUTED}$SSH_DIR/id_$KEY_TYPE${C_RESET}"
-      echo ""
-      echo -ne "  ${C_MUTED}개인키 출력? [y/N]${C_RESET}: "
-      read -r SHOW_KEY
-      if [ "$SHOW_KEY" = "y" ] || [ "$SHOW_KEY" = "Y" ]; then
-        echo ""
-        echo -e "  ${C_MUTED}────────── 개인키 ──────────${C_RESET}"
-        cat "$SSH_DIR/id_$KEY_TYPE"
-        echo -e "  ${C_MUTED}────────────────────────────${C_RESET}"
-        echo ""
-        ui_warn "이 키를 안전하게 보관하세요!"
-      fi
+       # Create temp file with private key + instructions
+       TEMP_KEY_FILE=$(mktemp)
+       {
+         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+         echo "  SSH 개인키 (Private Key)"
+         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+         echo ""
+         echo "⚠️  이 키는 다시 표시되지 않습니다! 반드시 복사하세요."
+         echo ""
+         cat "$SSH_DIR/id_$KEY_TYPE"
+         echo ""
+         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+         echo ""
+         echo "[사용 방법]"
+         echo ""
+         echo "1. 위 개인키를 복사하여 로컬에 저장:"
+         echo "   ~/.ssh/id_${KEY_TYPE}_${USERNAME}"
+         echo ""
+         echo "2. 권한 설정:"
+         echo "   chmod 600 ~/.ssh/id_${KEY_TYPE}_${USERNAME}"
+         echo ""
+         echo "3. SSH 접속:"
+         echo "   ssh -i ~/.ssh/id_${KEY_TYPE}_${USERNAME} ${USERNAME}@<서버IP>"
+         echo ""
+       } > "$TEMP_KEY_FILE"
+       
+       # Display with editbox (allows copy)
+       $DIALOG_CMD --clear --title " ⚠️  개인키 복사 필수 " --editbox "$TEMP_KEY_FILE" 30 75
+       
+       # Cleanup
+       rm -f "$TEMP_KEY_FILE"
       ;;
     3)
-      ui_info "SSH 키 설정 건너뜀"
       ;;
     *)
-      ui_info "SSH 키 설정 건너뜀"
       ;;
   esac
   
-  echo ""
-  ui_divider
-  echo ""
-  ui_info "사용자 환경 설정 중..."
+  local LOG_FILE=$(mktemp)
+  local SSH_STATUS="건너뜀"
+  [ "$SSH_CHOICE" = "1" ] && SSH_STATUS="공개키 등록"
+  [ "$SSH_CHOICE" = "2" ] && SSH_STATUS="새 키 생성 ($KEY_TYPE)"
+  
+  {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  사용자 추가: $USERNAME"
+    echo "  그룹: $SELECTED_GROUPS"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  [1/5] 사용자 생성"
+    if id "$USERNAME" &>/dev/null; then
+      echo "  ✓ 사용자 '$USERNAME' 확인됨"
+    fi
+    echo ""
+    echo "  [2/5] 그룹 추가"
+    echo "  ✓ 그룹 '$SELECTED_GROUPS' 추가됨"
+    echo ""
+    echo "  [3/5] SSH 키 설정"
+    echo "  → $SSH_STATUS"
+    echo ""
+    echo "  [4/5] 환경 설정"
+  } > "$LOG_FILE"
+  
   if [ -f "$SCRIPTS_PATH/user-setup.sh" ]; then
-    "$SCRIPTS_PATH/user-setup.sh" "$USERNAME" "$GROUPNAME"
-    ui_success "사용자 환경 설정 완료"
+    "$SCRIPTS_PATH/user-setup.sh" "$USERNAME" "$GROUPNAME" 2>&1 | \
+      sed -u 's/\x1b\[[0-9;]*m//g' | \
+      while IFS= read -r line; do
+        if [[ "$line" == *"완료"* ]]; then
+          echo "  ✓ $line"
+        elif [[ "$line" == *"[ERROR]"* ]]; then
+          echo "  ✗ $line"
+        elif [[ "$line" == *"[INFO]"* ]]; then
+          echo "  → ${line#*\[INFO\] }"
+        fi
+      done >> "$LOG_FILE"
+    echo "" >> "$LOG_FILE"
+    echo "  [5/5] 완료" >> "$LOG_FILE"
+    echo "  ✓ 사용자 '$USERNAME' 설정 완료" >> "$LOG_FILE"
   else
-    ui_error "user-setup.sh 없음"
-    ui_wait
+    echo "  ✗ user-setup.sh 없음" >> "$LOG_FILE"
+    cat "$LOG_FILE" | $DIALOG_CMD --clear --title " 오류 " --programbox 20 60
+    rm -f "$LOG_FILE"
     return 1
   fi
   
-  echo ""
-  echo -ne "  ${C_MUTED}자동 복구 등록? [Y/n]${C_RESET}: "
-  read -r REGISTER
-  if [ "$REGISTER" != "n" ] && [ "$REGISTER" != "N" ]; then
-    if [ -f "$SCRIPTS_PATH/user-register.sh" ]; then
-      "$SCRIPTS_PATH/user-register.sh" "$USERNAME" "$GROUPNAME"
-      ui_success "자동 복구 등록됨"
-    fi
-  fi
+  echo "" >> "$LOG_FILE"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$LOG_FILE"
   
-  echo ""
-  ui_divider
-  echo ""
-  ui_success "사용자 '$USERNAME' 설정 완료!"
-  echo ""
-  ui_wait
+  local SUMMARY="\n"
+  while IFS= read -r line; do
+    if [[ "$line" == *"✓"* ]]; then
+      line="${line//✓/\\Z2✓\\Zn}"
+    elif [[ "$line" == *"✗"* ]]; then
+      line="${line//✗/\\Z1✗\\Zn}"
+    elif [[ "$line" == *"→"* ]]; then
+      line="${line//→/\\Z4→\\Zn}"
+    elif [[ "$line" == *"["* && "$line" == *"]"* ]]; then
+      line="\\Zb$line\\ZB"
+    fi
+    SUMMARY+="$line\n"
+  done < "$LOG_FILE"
+  
+  $DIALOG_CMD --colors --clear --title " 사용자 추가 완료 " --msgbox "$SUMMARY" 24 55
+  
+  # Next steps message
+  local NEXT_STEPS="\n[사용자 전달 사항]\n\n"
+  NEXT_STEPS+="1. SSH 접속:\n"
+  NEXT_STEPS+="   ssh -i <개인키> $USERNAME@<서버IP>\n\n"
+  NEXT_STEPS+="2. 비밀번호 설정 (sudo 사용 시 필요):\n"
+  NEXT_STEPS+="   passwd\n\n"
+  NEXT_STEPS+="3. 사용자 정보 등록 (선택):\n"
+  NEXT_STEPS+="   chfn\n\n"
+  NEXT_STEPS+="4. 공유 권한 설정 (필수):\n"
+  NEXT_STEPS+="   echo \"umask 002\" >> ~/.bashrc && source ~/.bashrc\n"
+  
+  $DIALOG_CMD --clear --title " 다음 단계 안내 " --msgbox "$NEXT_STEPS" 18 60
+  
+  rm -f "$LOG_FILE"
 }
 
 admin_auto_recovery() {
-  ui_header
-  ui_title "자동 복구"
-  ui_subtitle "systemd 복구 서비스 관리"
-  echo ""
-  ui_divider
-  echo ""
-  ui_menu_item "1" "활성화" "서비스 시작"
-  ui_menu_item "2" "비활성화" "서비스 중지"
-  ui_menu_item "3" "상태 확인" "서비스 상태"
-  ui_menu_item "4" "수동 실행" "지금 복구 실행"
-  ui_menu_item "q" "돌아가기" ""
-  echo ""
-  ui_prompt
-  read -r RECOVERY_CHOICE
+  RECOVERY_CHOICE=$($DIALOG_CMD --clear --menu "자동 복구 관리" 14 50 4 \
+    1 "활성화 - 서비스 시작" \
+    2 "비활성화 - 서비스 중지" \
+    3 "상태 확인" \
+    4 "수동 실행 - 지금 복구 실행" \
+    3>&1 1>&2 2>&3)
   
-  echo ""
+  [ $? -ne 0 ] && return 0
+  
   case "$RECOVERY_CHOICE" in
     1)
-      ui_info "복구 서비스 활성화 중..."
+      $DIALOG_CMD --infobox "복구 서비스 활성화 중..." 3 35
       if systemctl enable aica-recovery.service 2>/dev/null; then
         systemctl start aica-recovery.service 2>/dev/null || true
-        ui_success "복구 서비스 활성화됨"
+        $DIALOG_CMD --msgbox "복구 서비스 활성화됨" 5 35
       else
-        ui_error "aica-recovery.service 없음"
-        ui_info "서비스 파일을 먼저 생성하세요"
+        $DIALOG_CMD --msgbox "aica-recovery.service 없음\n서비스 파일을 먼저 생성하세요" 7 45
       fi
       ;;
     2)
-      ui_info "복구 서비스 비활성화 중..."
+      $DIALOG_CMD --infobox "복구 서비스 비활성화 중..." 3 35
       if systemctl disable aica-recovery.service 2>/dev/null; then
         systemctl stop aica-recovery.service 2>/dev/null || true
-        ui_success "복구 서비스 비활성화됨"
+        $DIALOG_CMD --msgbox "복구 서비스 비활성화됨" 5 35
       else
-        ui_warn "서비스 미설치"
+        $DIALOG_CMD --msgbox "서비스 미설치" 5 25
       fi
       ;;
     3)
-      ui_info "서비스 상태:"
-      echo ""
-      systemctl status aica-recovery.service 2>/dev/null || ui_warn "서비스 미설치"
+      STATUS=$(systemctl status aica-recovery.service 2>&1) || STATUS="서비스 미설치"
+      $DIALOG_CMD --msgbox "$STATUS" 20 70
       ;;
     4)
-      ui_info "수동 복구 실행 중..."
+      $DIALOG_CMD --infobox "수동 복구 실행 중..." 3 30
       if [ -f "$SCRIPTS_PATH/ops-recovery.sh" ]; then
         "$SCRIPTS_PATH/ops-recovery.sh"
-        ui_success "복구 완료"
+        $DIALOG_CMD --msgbox "복구 완료" 5 20
       else
-        ui_error "ops-recovery.sh 없음"
+        $DIALOG_CMD --msgbox "ops-recovery.sh 없음" 5 30
       fi
       ;;
-    q|Q|5)
-      return
-      ;;
-    *)
-      ui_error "잘못된 선택"
-      ;;
   esac
-  
-  ui_wait
 }
 
 _detect_test_params() {
@@ -1055,74 +1135,61 @@ user_show_disk_usage() {
 }
 
 user_clean_cache_menu() {
-  ui_header
-  ui_title "캐시 정리"
-  ui_subtitle "공유 캐시 정리 (다른 사용자에게 영향 줄 수 있음)"
-  echo ""
-  ui_divider
-  echo ""
-  ui_menu_item "1" "Conda" "conda 패키지 캐시"
-  ui_menu_item "2" "Pip" "pip 패키지 캐시"
-  ui_menu_item "3" "PyTorch" "모델 캐시"
-  ui_menu_item "4" "HuggingFace" "모델 캐시"
-  ui_menu_item "5" "전체" "모든 캐시"
-  ui_menu_item "q" "돌아가기" ""
-  echo ""
-  ui_prompt
-  read -r choice
+  choice=$($DIALOG_CMD --clear --menu "캐시 정리\n(공유 캐시 - 다른 사용자에게 영향 줄 수 있음)" 16 55 5 \
+    1 "Conda - conda 패키지 캐시" \
+    2 "Pip - pip 패키지 캐시" \
+    3 "PyTorch - 모델 캐시" \
+    4 "HuggingFace - 모델 캐시" \
+    5 "전체 - 모든 캐시" \
+    3>&1 1>&2 2>&3)
   
-  echo ""
+  [ $? -ne 0 ] && return 0
+  
   case $choice in
     1)
+      $DIALOG_CMD --infobox "Conda 캐시 정리 중..." 3 30
       if sudo -n "$SCRIPTS_PATH/ops-clean-cache.sh" --conda 2>/dev/null; then
-        ui_success "Conda 캐시 정리됨"
+        $DIALOG_CMD --msgbox "Conda 캐시 정리됨" 5 30
       else
-        ui_error "캐시 정리 권한 없음"
+        $DIALOG_CMD --msgbox "캐시 정리 권한 없음" 5 30
       fi
       ;;
     2)
+      $DIALOG_CMD --infobox "Pip 캐시 정리 중..." 3 30
       if sudo -n "$SCRIPTS_PATH/ops-clean-cache.sh" --pip 2>/dev/null; then
-        ui_success "Pip 캐시 정리됨"
+        $DIALOG_CMD --msgbox "Pip 캐시 정리됨" 5 30
       else
-        ui_error "캐시 정리 권한 없음"
+        $DIALOG_CMD --msgbox "캐시 정리 권한 없음" 5 30
       fi
       ;;
     3)
+      $DIALOG_CMD --infobox "PyTorch 캐시 정리 중..." 3 35
       if sudo -n "$SCRIPTS_PATH/ops-clean-cache.sh" --torch 2>/dev/null; then
-        ui_success "PyTorch 캐시 정리됨"
+        $DIALOG_CMD --msgbox "PyTorch 캐시 정리됨" 5 30
       else
-        ui_error "캐시 정리 권한 없음"
+        $DIALOG_CMD --msgbox "캐시 정리 권한 없음" 5 30
       fi
       ;;
     4)
+      $DIALOG_CMD --infobox "HuggingFace 캐시 정리 중..." 3 35
       if sudo -n "$SCRIPTS_PATH/ops-clean-cache.sh" --hf 2>/dev/null; then
-        ui_success "HuggingFace 캐시 정리됨"
+        $DIALOG_CMD --msgbox "HuggingFace 캐시 정리됨" 5 35
       else
-        ui_error "캐시 정리 권한 없음"
+        $DIALOG_CMD --msgbox "캐시 정리 권한 없음" 5 30
       fi
       ;;
     5)
-      echo -ne "  ${C_MUTED}정말 모든 캐시를 정리? [y/N]${C_RESET}: "
-      read -r confirm
-      if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+      $DIALOG_CMD --yesno "정말 모든 캐시를 정리하시겠습니까?\n이 작업은 되돌릴 수 없습니다." 8 45
+      if [ $? -eq 0 ]; then
+        $DIALOG_CMD --infobox "모든 캐시 정리 중..." 3 30
         if sudo -n "$SCRIPTS_PATH/ops-clean-cache.sh" --all 2>/dev/null; then
-          ui_success "모든 캐시 정리됨"
+          $DIALOG_CMD --msgbox "모든 캐시 정리됨" 5 30
         else
-          ui_error "캐시 정리 권한 없음"
+          $DIALOG_CMD --msgbox "캐시 정리 권한 없음" 5 30
         fi
-      else
-        ui_info "취소됨"
       fi
       ;;
-    q|Q|6)
-      return
-      ;;
-    *)
-      ui_error "잘못된 선택"
-      ;;
   esac
-  
-  ui_wait
 }
 
 user_show_conda_guide() {
