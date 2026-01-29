@@ -22,6 +22,7 @@ fi
 
 # 사용자별 세팅
 "$SCRIPT_DIR/user-create-home.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 데이터 디렉토리 생성 실패"; exit 1; }
+"$SCRIPT_DIR/user-setup-shell.sh" "$USERNAME" "bash" "$GROUPNAME" || { echo "[ERROR] 사용자 쉘 설정 실패"; exit 1; }
 "$SCRIPT_DIR/user-setup-conda.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 Conda 설정 실패"; exit 1; }
 "$SCRIPT_DIR/user-fix-permissions.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 권한 설정 실패"; exit 1; }
 

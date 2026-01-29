@@ -253,8 +253,6 @@ source ~/.bashrc
 
 ---
 
----
-
 ## 사용자 추가
 
 초기 설정 완료 후, 새 사용자를 추가하려면:
@@ -262,16 +260,79 @@ source ~/.bashrc
 ```bash
 sudo ./main.sh
 # → "3. 사용자 추가" 선택
-# → 사용자명 입력 (예: alice)
-# → SSH 키 설정 (선택)
 ```
 
-**자동 수행 작업**:
-1. Linux 사용자 생성 (`adduser`)
-2. 그룹에 추가 (`usermod -aG`)
-3. 홈 디렉토리 심볼릭 링크 (`/home/alice` → `/data/users/alice`)
-4. Conda 환경 설정 (`.condarc`, `conda init`)
-5. 자동 복구 등록 (`users.txt`)
+### 사용자 추가 과정
+
+| 단계 | 작업 | 설명 |
+|------|------|------|
+| **1/5** | 사용자 생성 | `adduser --disabled-password` |
+| **2/5** | 그룹 추가 | 선택한 그룹에 `usermod -aG` (다중 선택 가능) |
+| **3/5** | SSH 키 설정 | 공개키 등록 또는 새 키 쌍 생성 |
+| **4/5** | 환경 설정 | 홈 디렉토리, 쉘, Conda 설정 |
+| **5/5** | 완료 | 결과 요약 및 다음 단계 안내 |
+
+### 자동 수행 작업
+
+```
+[1/5] 사용자 생성
+  ✓ Linux 사용자 생성 (adduser)
+
+[2/5] 그룹 추가
+  ✓ 선택한 그룹에 추가 (usermod -aG)
+
+[3/5] SSH 키 설정
+  → 공개키 등록 / 새 키 생성 / 건너뛰기
+
+[4/5] 환경 설정
+  ✓ 홈 디렉토리 심볼릭 링크 (/home/user → /data/users/user)
+  ✓ .hpcrc 복사 (alias, umask 설정)
+  ✓ Conda 환경 설정 (.condarc, conda init)
+  ✓ 권한 설정 (chown)
+
+[5/5] 완료
+  ✓ 사용자 설정 완료
+```
+
+### SSH 키 옵션
+
+| 옵션 | 설명 |
+|------|------|
+| **공개키 붙여넣기** | 사용자의 기존 공개키를 `~/.ssh/authorized_keys`에 등록 |
+| **새 키 쌍 생성** | ed25519/rsa/ecdsa 키 생성, 개인키를 사용자에게 전달 |
+| **건너뛰기** | 나중에 설정 |
+
+### 환경 변수
+
+사용자 추가 시 글로벌 환경 변수가 자동 적용됩니다:
+
+| 변수 | 경로 | 설명 |
+|------|------|------|
+| `HF_HOME` | `/data/models/huggingface` | HuggingFace 모델 공유 |
+| `TORCH_HOME` | `/data/models/torch` | PyTorch 모델 공유 |
+| `CONDA_PKGS_DIRS` | `/data/cache/conda/pkgs` | Conda 패키지 공유 |
+
+> 환경 변수는 `/etc/profile.d/global_envs.sh`에서 로드되어 모든 사용자에게 적용됩니다.
+
+### 사용자 전달 사항
+
+사용자 추가 완료 후 아래 정보를 사용자에게 전달하세요:
+
+```bash
+# 1. SSH 접속
+ssh -i <개인키> username@<서버IP>
+
+# 2. 비밀번호 설정 (sudo 사용 시 필요)
+passwd
+
+# 3. 사용자 정보 등록 (선택)
+chfn
+
+# 4. 공유 권한 설정 (필수!)
+echo "umask 002" >> ~/.bashrc && source ~/.bashrc
+```
+
+> **참고**: 비밀번호 없이 생성되므로, sudo가 필요한 경우 관리자가 `sudo passwd <username>`으로 설정하거나 사용자가 직접 `passwd` 실행
 
 ---
 

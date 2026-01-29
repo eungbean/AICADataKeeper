@@ -1,0 +1,8 @@
+
+#alias
+alias pp="python"
+alias pip="uv pip"
+alias pip3="uv pip3"
+
+# permission
+umask 002

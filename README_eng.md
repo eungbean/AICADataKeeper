@@ -108,9 +108,9 @@ uv pip install package-name
 #### Shared Cache
 uv cache is stored at `/data/cache/uv` and shared among all users.
 
-### 🔒 ACL-Based Permission Model
+### 🔒 Permission Model
 
-For security, we use **ACL (Access Control Lists)** instead of `chmod 777`.
+For security, we use **setgid + umask 002** instead of `chmod 777` (NFS v3 compatible).
 
 #### Apply Permissions
 ```bash
@@ -118,13 +118,20 @@ sudo /data/scripts/system-permissions.sh
 ```
 
 This script performs:
-- Apply ACL to shared cache directories (`setfacl -d -m g:gpu-users:rwx`)
 - Set setgid bit (`chmod 2775`) for group inheritance
+- Apply group permissions to shared directories
 - Safely migrate from `chmod 777`
 
 #### Check Permissions
 ```bash
-getfacl /data/cache/pip
+ls -ld /data/cache/pip
+# Result: drwxrwsr-x (2775, 's' indicates setgid)
+```
+
+#### Set umask (Required for each user)
+```bash
+echo "umask 002" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ### 🛠️ Sudoers for Non-Admin Users
