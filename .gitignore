@@ -67,6 +67,9 @@ ipython_config.py
 *.sublime-workspace
 *.sublime-project
 
+# Development metadata
+.sisyphus/
+
 # AI/ML specific
 *.h5
 *.hdf5
