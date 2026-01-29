@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# /data/scripts/setup_uv.sh
+# /data/scripts/install-uv.sh
 # uv (fast Python package manager) 설치 및 공유 캐시 설정
 # uv는 pip의 10-100배 빠른 대체 패키지 매니저로, 공유 캐시를 지원합니다.
 

@@ -2,7 +2,7 @@
 # Setup package manager configuration files for hybrid cache strategy
 # This script creates system-wide config files that work in all contexts (systemd, cron, sudo)
 # 
-# Usage: sudo ./setup_cache_config.sh
+# Usage: sudo ./system-cache-config.sh
 #
 # Creates:
 #   - /etc/conda/.condarc (conda package cache)

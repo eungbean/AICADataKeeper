@@ -12,41 +12,41 @@
 
 ### Numbered Pipeline (1-5)
 ```
-1_install_miniconda3_global.sh  → Global Miniconda install
-2_install_global_env.sh         → /etc/profile.d/global_envs.sh setup
-3_create_user_data_dir.sh       → /home/<user> → /data/users/<user> symlink
-4_setup_user_conda.sh           → User .condarc + conda init
-5_fix_user_permission.sh        → chown user:group recursively
+install-miniconda.sh  → Global Miniconda install
+install-global-env.sh         → /etc/profile.d/global_envs.sh setup
+user-create-home.sh       → /home/<user> → /data/users/<user> symlink
+user-setup-conda.sh           → User .condarc + conda init
+user-fix-permissions.sh        → chown user:group recursively
 ```
 
 **Critical Order**: 1→2 for global, 3→4→5 for per-user. Breaking order = script failures.
 
 ### Orchestrators (Call Other Scripts)
-- `setup_global_after_startup.sh` → Calls 1, 2 (post-reboot recovery)
-- `setup_new_user.sh` → Calls 3, 4, 5 (user onboarding/recovery)
-- `auto_recovery.sh` → Calls setup_global + setup_new_user for each user in users.txt
-- `setup_wizard.sh` → Interactive menu calling all setup scripts
+- `ops-setup-global.sh` → Calls 1, 2 (post-reboot recovery)
+- `user-setup.sh` → Calls 3, 4, 5 (user onboarding/recovery)
+- `ops-recovery.sh` → Calls setup_global + setup_new_user for each user in users.txt
+- `admin-wizard.sh` → Interactive menu calling all setup scripts
 
 ### Utilities (Standalone)
-- `register_user.sh` → Add to users.txt (auto-recovery registry)
-- `clean_cache.sh` → Cleanup conda/pip/torch/hf caches
-- `disk_alert.sh` → Monitor /data partition usage
-- `setup_permissions.sh` → Apply ACL to shared directories
-- `setup_sudoers.sh` → Configure selective NOPASSWD for gpu-users
-- `setup_cache_config.sh` → Create /etc/{conda/.condarc,pip.conf,npmrc}
-- `setup_uv.sh` → Install uv package manager
+- `user-register.sh` → Add to users.txt (auto-recovery registry)
+- `ops-clean-cache.sh` → Cleanup conda/pip/torch/hf caches
+- `ops-disk-alert.sh` → Monitor /data partition usage
+- `system-permissions.sh` → Apply ACL to shared directories
+- `system-sudoers.sh` → Configure selective NOPASSWD for gpu-users
+- `system-cache-config.sh` → Create /etc/{conda/.condarc,pip.conf,npmrc}
+- `install-uv.sh` → Install uv package manager
 
 ## Entry Points
 
 | User Type | Command | Purpose |
 |-----------|---------|---------|
-| **Admin (interactive)** | `sudo setup_wizard.sh` | TUI menu for all tasks |
-| **Admin (post-reboot)** | `sudo setup_global_after_startup.sh` | Restore global environment |
-| **Admin (new user)** | `sudo setup_new_user.sh <user> <group>` | Onboard user |
-| **Admin (register user)** | `sudo register_user.sh <user> <group>` | Add to auto-recovery |
-| **User** | `sudo clean_cache.sh --all` | Clean shared caches |
-| **User** | `sudo disk_alert.sh --threshold 90` | Check disk usage |
-| **Systemd** | `auto_recovery.sh` | Automatic recovery after reboot |
+| **Admin (interactive)** | `sudo admin-wizard.sh` | TUI menu for all tasks |
+| **Admin (post-reboot)** | `sudo ops-setup-global.sh` | Restore global environment |
+| **Admin (new user)** | `sudo user-setup.sh <user> <group>` | Onboard user |
+| **Admin (register user)** | `sudo user-register.sh <user> <group>` | Add to auto-recovery |
+| **User** | `sudo ops-clean-cache.sh --all` | Clean shared caches |
+| **User** | `sudo ops-disk-alert.sh --threshold 90` | Check disk usage |
+| **Systemd** | `ops-recovery.sh` | Automatic recovery after reboot |
 
 ## Critical Dependencies
 
@@ -108,10 +108,10 @@ fi
 
 ### Wrapper vs. Atomic
 **Wrappers** (call other scripts):
-- setup_global_after_startup.sh
-- setup_new_user.sh
-- auto_recovery.sh
-- setup_wizard.sh
+- ops-setup-global.sh
+- user-setup.sh
+- ops-recovery.sh
+- admin-wizard.sh
 
 **Atomic** (standalone, no script calls):
 - All numbered scripts (1-5)
@@ -121,7 +121,7 @@ fi
 All scripts use:
 ```bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"$SCRIPT_DIR/3_create_user_data_dir.sh" "$USERNAME" "$GROUPNAME"
+"$SCRIPT_DIR/user-create-home.sh" "$USERNAME" "$GROUPNAME"
 ```
 
 ## Permission Model
@@ -142,7 +142,7 @@ Standard permissions:
 File: `/etc/sudoers.d/aica-datakeeper`
 
 ```bash
-Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/ops-clean-cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 %gpu-users ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
 ```
@@ -156,7 +156,7 @@ Cmnd_Alias DISK_CHECK = /usr/bin/df
 | Script 2 fails | global_env.sh missing | Ensure ../config/global_env.sh exists |
 | Script 4 fails | Miniconda not installed | Run script 1 first |
 | Script 4/5 fails | User data missing | Run script 3 first |
-| setup_sudoers fails | Group missing | Run setup_permissions.sh first |
+| setup_sudoers fails | Group missing | Run system-permissions.sh first |
 | auto_recovery partial | User doesn't exist | Remove from users.txt or create user |
 
 ## Verification
@@ -166,8 +166,8 @@ Cmnd_Alias DISK_CHECK = /usr/bin/df
 bash -n *.sh
 
 # Test idempotency (run twice)
-sudo ./setup_new_user.sh testuser gpu-users
-sudo ./setup_new_user.sh testuser gpu-users  # Should not fail
+sudo ./user-setup.sh testuser gpu-users
+sudo ./user-setup.sh testuser gpu-users  # Should not fail
 
 # Verify ACL applied
 getfacl /data/cache/pip | grep "group:gpu-users:rwx"
@@ -181,5 +181,5 @@ visudo -c -f /etc/sudoers.d/aica-datakeeper
 - Numbered scripts not meant for direct execution (called by wrappers)
 - All scripts must be idempotent (safe to run multiple times)
 - Script 3 backs up existing directories before symlinking
-- auto_recovery.sh reads users.txt line-by-line (format: `username:groupname`)
-- setup_wizard.sh supports dialog/whiptail/text fallback (auto-detects)
+- ops-recovery.sh reads users.txt line-by-line (format: `username:groupname`)
+- admin-wizard.sh supports dialog/whiptail/text fallback (auto-detects)

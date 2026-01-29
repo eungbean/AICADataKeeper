@@ -45,7 +45,7 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 log_message "Step 1: 글로벌 환경 복구 시작"
-if "$SCRIPT_DIR/setup_global_after_startup.sh" gpu-users >> "$LOG_FILE" 2>&1; then
+if "$SCRIPT_DIR/ops-setup-global.sh" gpu-users >> "$LOG_FILE" 2>&1; then
   log_message "Step 1: 글로벌 환경 복구 완료"
 else
   log_message "[ERROR] Step 1: 글로벌 환경 복구 실패 (exit code: $?)"
@@ -69,7 +69,7 @@ grep -v "^#" "$USERS_FILE" | grep -v "^$" | while IFS=: read -r USERNAME GROUPNA
   
   log_message "사용자 복구 중: $USERNAME:$GROUPNAME"
   
-  if "$SCRIPT_DIR/setup_new_user.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1; then
+  if "$SCRIPT_DIR/user-setup.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1; then
     log_message "사용자 $USERNAME 복구 완료"
     RECOVERY_COUNT=$((RECOVERY_COUNT + 1))
   else

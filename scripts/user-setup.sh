@@ -21,8 +21,8 @@ if [ -z "$USERNAME" ]; then
 fi
 
 # 사용자별 세팅
-"$SCRIPT_DIR/3_create_user_data_dir.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 데이터 디렉토리 생성 실패"; exit 1; }
-"$SCRIPT_DIR/4_setup_user_conda.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 Conda 설정 실패"; exit 1; }
-"$SCRIPT_DIR/5_fix_user_permission.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 권한 설정 실패"; exit 1; }
+"$SCRIPT_DIR/user-create-home.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 데이터 디렉토리 생성 실패"; exit 1; }
+"$SCRIPT_DIR/user-setup-conda.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 Conda 설정 실패"; exit 1; }
+"$SCRIPT_DIR/user-fix-permissions.sh" "$USERNAME" "$GROUPNAME" || { echo "[ERROR] 사용자 권한 설정 실패"; exit 1; }
 
 echo "[INFO] 사용자 $USERNAME 설정/복구 완료."

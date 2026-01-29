@@ -26,7 +26,7 @@ if [ ! -f "$USERS_FILE" ]; then
   mkdir -p "$(dirname "$USERS_FILE")"
   cat > "$USERS_FILE" <<EOF
 # AICADataKeeper Registered Users
-# 이 파일은 auto_recovery.sh가 서버 재부팅 후 자동으로 복구할 사용자 목록입니다.
+# 이 파일은 ops-recovery.sh가 서버 재부팅 후 자동으로 복구할 사용자 목록입니다.
 # Format: username:groupname
 # 주석은 #으로 시작합니다.
 

@@ -48,20 +48,20 @@ AICADataKeeper is a multi-user GPU server environment management system designed
 │   │   ├── global_env.sh       # Global environment variables
 │   │   └── users.txt           # Registered users for auto-recovery
 │   ├── scripts/
-│   │   ├── 1_install_miniconda3_global.sh     # Install shared Miniconda
-│   │   ├── 2_install_global_env.sh            # Setup system environment
-│   │   ├── 3_create_user_data_dir.sh          # Create user home symlinks
-│   │   ├── 4_setup_user_conda.sh              # User conda configuration
-│   │   ├── 5_fix_user_permission.sh           # Fix file ownership
-│   │   ├── setup_new_user.sh                  # User onboarding wrapper
-│   │   ├── setup_global_after_startup.sh      # Post-reboot global recovery
-│   │   ├── setup_permissions.sh               # Apply ACL permissions
-│   │   ├── setup_sudoers.sh                   # Configure sudoers
-│   │   ├── setup_uv.sh                        # Install uv package manager
-│   │   ├── auto_recovery.sh                   # Systemd recovery script
-│   │   ├── register_user.sh                   # Add user to registry
-│   │   ├── disk_alert.sh                      # Disk usage monitoring
-│   │   └── clean_cache.sh                     # Cache cleanup utility
+│   │   ├── install-miniconda.sh     # Install shared Miniconda
+│   │   ├── install-global-env.sh            # Setup system environment
+│   │   ├── user-create-home.sh          # Create user home symlinks
+│   │   ├── user-setup-conda.sh              # User conda configuration
+│   │   ├── user-fix-permissions.sh           # Fix file ownership
+│   │   ├── user-setup.sh                  # User onboarding wrapper
+│   │   ├── ops-setup-global.sh      # Post-reboot global recovery
+│   │   ├── system-permissions.sh               # Apply ACL permissions
+│   │   ├── system-sudoers.sh                   # Configure sudoers
+│   │   ├── install-uv.sh                        # Install uv package manager
+│   │   ├── ops-recovery.sh                   # Systemd recovery script
+│   │   ├── user-register.sh                   # Add user to registry
+│   │   ├── ops-disk-alert.sh                      # Disk usage monitoring
+│   │   └── ops-clean-cache.sh                     # Cache cleanup utility
 │   ├── cache/                  # Shared package caches
 │   │   ├── conda/pkgs/         # Conda packages
 │   │   ├── pip/                # Pip packages
@@ -147,7 +147,7 @@ Only grant specific commands, never `NOPASSWD: ALL`:
 
 ```bash
 # /etc/sudoers.d/aica-datakeeper
-Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/ops-clean-cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 %gpu-users ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
 ```
@@ -184,10 +184,10 @@ sudo adduser <username>
 sudo usermod -aG gpu-users <username>
 
 # 2. Setup user environment (automated)
-sudo /data/scripts/setup_new_user.sh <username> gpu-users
+sudo /data/scripts/user-setup.sh <username> gpu-users
 
 # 3. Register for auto-recovery
-sudo /data/scripts/register_user.sh <username> gpu-users
+sudo /data/scripts/user-register.sh <username> gpu-users
 
 # Result:
 # - /home/<username> -> /data/users/<username> (symlink)
@@ -203,7 +203,7 @@ sudo /data/scripts/register_user.sh <username> gpu-users
 systemctl start aica-recovery.service
 
 # Manual (if needed)
-sudo /data/scripts/auto_recovery.sh
+sudo /data/scripts/ops-recovery.sh
 ```
 
 Recovery sequence:
@@ -219,24 +219,24 @@ Recovery sequence:
 
 ```bash
 # Clean all caches
-sudo /data/scripts/clean_cache.sh --all
+sudo /data/scripts/ops-clean-cache.sh --all
 
 # Clean specific caches
-sudo /data/scripts/clean_cache.sh --conda
-sudo /data/scripts/clean_cache.sh --pip
-sudo /data/scripts/clean_cache.sh --torch
-sudo /data/scripts/clean_cache.sh --hf
+sudo /data/scripts/ops-clean-cache.sh --conda
+sudo /data/scripts/ops-clean-cache.sh --pip
+sudo /data/scripts/ops-clean-cache.sh --torch
+sudo /data/scripts/ops-clean-cache.sh --hf
 ```
 
 ### Disk Monitoring
 
 ```bash
 # Manual check
-/data/scripts/disk_alert.sh --threshold 80 --dry-run
+/data/scripts/ops-disk-alert.sh --threshold 80 --dry-run
 
 # Automated (via cron)
 # Add to /etc/cron.hourly/ or root crontab:
-0 * * * * /data/scripts/disk_alert.sh --threshold 80
+0 * * * * /data/scripts/ops-disk-alert.sh --threshold 80
 ```
 
 ---
@@ -265,7 +265,7 @@ ls -ld /data/cache/pip | grep "^d.*s"
 # Expected: 's' or 'S' in group execute position
 
 # Test non-admin cache access
-sudo -u testuser sudo -n /data/scripts/clean_cache.sh --help
+sudo -u testuser sudo -n /data/scripts/ops-clean-cache.sh --help
 # Expected: exit code 0 (NOPASSWD works)
 ```
 
@@ -273,7 +273,7 @@ sudo -u testuser sudo -n /data/scripts/clean_cache.sh --help
 
 After deployment:
 - [ ] New user can create conda environment without sudo
-- [ ] Non-admin user can run `sudo clean_cache.sh`
+- [ ] Non-admin user can run `sudo ops-clean-cache.sh`
 - [ ] uv creates cache at `$UV_CACHE_DIR`
 - [ ] After reboot, all registered users' environments restored
 - [ ] Disk alert triggers at threshold
@@ -294,20 +294,20 @@ cd AICADataKeeper
 chmod +x scripts/*.sh
 
 # 3. Run global setup
-sudo ./scripts/setup_global_after_startup.sh gpu-users
+sudo ./scripts/ops-setup-global.sh gpu-users
 
 # 4. Setup permissions
-sudo ./scripts/setup_permissions.sh
-sudo ./scripts/setup_sudoers.sh
+sudo ./scripts/system-permissions.sh
+sudo ./scripts/system-sudoers.sh
 
 # 5. Install uv (optional)
-sudo ./scripts/setup_uv.sh
+sudo ./scripts/install-uv.sh
 
 # 6. Enable auto-recovery service
 sudo systemctl enable --now aica-recovery.service
 
 # 7. Setup disk monitoring (optional)
-echo '0 * * * * /data/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+echo '0 * * * * /data/scripts/ops-disk-alert.sh --threshold 80' | sudo crontab -
 ```
 
 ### User Addition
@@ -316,8 +316,8 @@ echo '0 * * * * /data/scripts/disk_alert.sh --threshold 80' | sudo crontab -
 # Standard user onboarding
 sudo adduser alice
 sudo usermod -aG gpu-users alice
-sudo /data/scripts/setup_new_user.sh alice gpu-users
-sudo /data/scripts/register_user.sh alice gpu-users
+sudo /data/scripts/user-setup.sh alice gpu-users
+sudo /data/scripts/user-register.sh alice gpu-users
 ```
 
 ### Migration from Old Setup
@@ -329,7 +329,7 @@ If migrating from chmod 777 setup:
 getfacl -R /data > /backup/acl-backup-$(date +%Y%m%d).txt
 
 # 2. Apply new permission model
-sudo /data/scripts/setup_permissions.sh
+sudo /data/scripts/system-permissions.sh
 
 # 3. Verify no breakage
 # Test conda/pip installations for existing users
@@ -345,7 +345,7 @@ sudo /data/scripts/setup_permissions.sh
 ### Known Issues (as of 2026-01-29)
 
 **Fixed in Improvement Plan**:
-- ~~`setup_global_after_startup.sh` undefined variable `$ENV_DST`~~ → FIXED
+- ~~`ops-setup-global.sh` undefined variable `$ENV_DST`~~ → FIXED
 - ~~Cache path inconsistency (`/data/cache/` vs `/data/cache/`)~~ → FIXED
 - ~~chmod 777 security issues~~ → REPLACED with ACL
 - ~~No auto-recovery service~~ → ADDED systemd service
@@ -369,7 +369,7 @@ sudo /data/scripts/setup_permissions.sh
 
 - System directories: lowercase with underscore (`user_data`, `conda_pkgs`)
 - Config files: snake_case with `.sh` extension
-- User-facing scripts: descriptive names (`setup_new_user.sh`, not `setup.sh`)
+- User-facing scripts: descriptive names (`user-setup.sh`, not `setup.sh`)
 - Numbered scripts: prefix for execution order (`1_install_`, `2_install_`)
 
 ### Performance Considerations
@@ -390,12 +390,12 @@ sudo /data/scripts/setup_permissions.sh
 
 **Symlink Broken**:
 ```bash
-sudo /data/scripts/3_create_user_data_dir.sh <username> gpu-users
+sudo /data/scripts/user-create-home.sh <username> gpu-users
 ```
 
 **Permission Denied on Cache**:
 ```bash
-sudo /data/scripts/setup_permissions.sh
+sudo /data/scripts/system-permissions.sh
 # or
 sudo chmod 2775 /data/cache/<specific-cache>
 sudo setfacl -m g:gpu-users:rwx /data/cache/<specific-cache>
@@ -403,13 +403,13 @@ sudo setfacl -m g:gpu-users:rwx /data/cache/<specific-cache>
 
 **Conda Environment Not Found**:
 ```bash
-sudo /data/scripts/4_setup_user_conda.sh <username> gpu-users
+sudo /data/scripts/user-setup-conda.sh <username> gpu-users
 ```
 
 **Service Failed to Start**:
 ```bash
 journalctl -u aica-recovery.service -n 50
-# Check /data/scripts/auto_recovery.sh logs
+# Check /data/scripts/ops-recovery.sh logs
 ```
 
 ---
@@ -423,7 +423,7 @@ journalctl -u aica-recovery.service -n 50
 - Review disk alert logs: `/var/log/aica-disk-alert.log`
 
 **Monthly**:
-- Clean unused caches: `sudo /data/scripts/clean_cache.sh --all`
+- Clean unused caches: `sudo /data/scripts/ops-clean-cache.sh --all`
 - Review user list: `cat /data/config/users.txt`
 - Check for obsolete user data: `ls /data/users/`
 

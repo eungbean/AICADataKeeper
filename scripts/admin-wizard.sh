@@ -99,11 +99,11 @@ function menu_install_global {
   GROUPNAME=${GROUPNAME:-gpu-users}
   
   echo "[INFO] 글로벌 환경 설치를 시작합니다..."
-  if [ -f "$SCRIPT_DIR/setup_global_after_startup.sh" ]; then
-    "$SCRIPT_DIR/setup_global_after_startup.sh" "$GROUPNAME"
+  if [ -f "$SCRIPT_DIR/ops-setup-global.sh" ]; then
+    "$SCRIPT_DIR/ops-setup-global.sh" "$GROUPNAME"
     echo "[INFO] 글로벌 환경 설치 완료"
   else
-    echo "[ERROR] setup_global_after_startup.sh 파일을 찾을 수 없습니다."
+    echo "[ERROR] ops-setup-global.sh 파일을 찾을 수 없습니다."
     return 1
   fi
   
@@ -129,11 +129,11 @@ function menu_add_user {
   GROUPNAME=${GROUPNAME:-gpu-users}
   
   echo "[INFO] 사용자 $USERNAME 추가를 시작합니다..."
-  if [ -f "$SCRIPT_DIR/setup_new_user.sh" ]; then
-    "$SCRIPT_DIR/setup_new_user.sh" "$USERNAME" "$GROUPNAME"
+  if [ -f "$SCRIPT_DIR/user-setup.sh" ]; then
+    "$SCRIPT_DIR/user-setup.sh" "$USERNAME" "$GROUPNAME"
     echo "[INFO] 사용자 추가 완료"
   else
-    echo "[ERROR] setup_new_user.sh 파일을 찾을 수 없습니다."
+    echo "[ERROR] user-setup.sh 파일을 찾을 수 없습니다."
     return 1
   fi
   
@@ -150,18 +150,18 @@ function menu_setup_permissions {
   
   echo "[INFO] 권한 설정을 시작합니다..."
   
-  if [ -f "$SCRIPT_DIR/setup_permissions.sh" ]; then
-    "$SCRIPT_DIR/setup_permissions.sh"
-    echo "[INFO] setup_permissions.sh 실행 완료"
+  if [ -f "$SCRIPT_DIR/system-permissions.sh" ]; then
+    "$SCRIPT_DIR/system-permissions.sh"
+    echo "[INFO] system-permissions.sh 실행 완료"
   else
-    echo "[WARNING] setup_permissions.sh 파일을 찾을 수 없습니다."
+    echo "[WARNING] system-permissions.sh 파일을 찾을 수 없습니다."
   fi
   
-  if [ -f "$SCRIPT_DIR/setup_sudoers.sh" ]; then
-    "$SCRIPT_DIR/setup_sudoers.sh"
-    echo "[INFO] setup_sudoers.sh 실행 완료"
+  if [ -f "$SCRIPT_DIR/system-sudoers.sh" ]; then
+    "$SCRIPT_DIR/system-sudoers.sh"
+    echo "[INFO] system-sudoers.sh 실행 완료"
   else
-    echo "[WARNING] setup_sudoers.sh 파일을 찾을 수 없습니다."
+    echo "[WARNING] system-sudoers.sh 파일을 찾을 수 없습니다."
   fi
   
   echo "[INFO] 권한 설정 완료"
@@ -291,11 +291,11 @@ function menu_cache_config {
   echo ""
   
   echo "[INFO] 캐시 설정을 시작합니다..."
-  if [ -f "$SCRIPT_DIR/setup_cache_config.sh" ]; then
-    "$SCRIPT_DIR/setup_cache_config.sh"
+  if [ -f "$SCRIPT_DIR/system-cache-config.sh" ]; then
+    "$SCRIPT_DIR/system-cache-config.sh"
     echo "[INFO] 캐시 설정 완료"
   else
-    echo "[WARNING] setup_cache_config.sh 파일을 찾을 수 없습니다."
+    echo "[WARNING] system-cache-config.sh 파일을 찾을 수 없습니다."
     echo "[INFO] 이 기능은 아직 구현되지 않았을 수 있습니다."
   fi
   
@@ -311,11 +311,11 @@ function menu_setup_uv {
   echo ""
   
   echo "[INFO] uv 설치를 시작합니다..."
-  if [ -f "$SCRIPT_DIR/setup_uv.sh" ]; then
-    "$SCRIPT_DIR/setup_uv.sh"
+  if [ -f "$SCRIPT_DIR/install-uv.sh" ]; then
+    "$SCRIPT_DIR/install-uv.sh"
     echo "[INFO] uv 설치 완료"
   else
-    echo "[ERROR] setup_uv.sh 파일을 찾을 수 없습니다."
+    echo "[ERROR] install-uv.sh 파일을 찾을 수 없습니다."
     return 1
   fi
   

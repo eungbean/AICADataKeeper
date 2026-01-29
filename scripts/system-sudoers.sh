@@ -17,14 +17,14 @@ echo "[INFO] Setting up sudoers configuration for group: $GROUPNAME"
 
 if ! getent group "$GROUPNAME" > /dev/null 2>&1; then
   echo "[ERROR] Group does not exist: $GROUPNAME"
-  echo "[ERROR] Please create the group first or run setup_permissions.sh"
+  echo "[ERROR] Please create the group first or run system-permissions.sh"
   exit 1
 fi
 
 SUDOERS_CONTENT="# AICADataKeeper sudoers configuration
 # Allow $GROUPNAME to run specific maintenance commands without password
 
-Cmnd_Alias CACHE_MGMT = /data/scripts/clean_cache.sh
+Cmnd_Alias CACHE_MGMT = /data/scripts/ops-clean-cache.sh
 Cmnd_Alias DISK_CHECK = /usr/bin/df
 
 %$GROUPNAME ALL=(ALL) NOPASSWD: CACHE_MGMT, DISK_CHECK
@@ -61,7 +61,7 @@ echo "[INFO] Sudoers configuration completed!"
 echo "[INFO] ============================================"
 echo ""
 echo "[INFO] Users in group '$GROUPNAME' can now run:"
-echo "  - sudo /data/scripts/clean_cache.sh"
+echo "  - sudo /data/scripts/ops-clean-cache.sh"
 echo "  - sudo /usr/bin/df"
 echo ""
-echo "[INFO] Test with: sudo -u <username> sudo -n /data/scripts/clean_cache.sh --help"
+echo "[INFO] Test with: sudo -u <username> sudo -n /data/scripts/ops-clean-cache.sh --help"

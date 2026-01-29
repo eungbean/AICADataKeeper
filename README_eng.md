@@ -92,7 +92,7 @@ Users can override cache paths with environment variables:
 
 #### Installation
 ```bash
-sudo /data/scripts/setup_uv.sh
+sudo /data/scripts/install-uv.sh
 ```
 
 #### Usage
@@ -114,7 +114,7 @@ For security, we use **ACL (Access Control Lists)** instead of `chmod 777`.
 
 #### Apply Permissions
 ```bash
-sudo /data/scripts/setup_permissions.sh
+sudo /data/scripts/system-permissions.sh
 ```
 
 This script performs:
@@ -134,7 +134,7 @@ Non-admin users can perform specific admin tasks (without password).
 #### Allowed Commands
 ```bash
 # Clean cache
-sudo /data/scripts/clean_cache.sh --all
+sudo /data/scripts/ops-clean-cache.sh --all
 
 # Check disk usage
 sudo df -h /data
@@ -142,7 +142,7 @@ sudo df -h /data
 
 #### Setup
 ```bash
-sudo /data/scripts/setup_sudoers.sh
+sudo /data/scripts/system-sudoers.sh
 ```
 
 This creates `/etc/sudoers.d/aica-datakeeper` file to grant permissions safely.
@@ -154,7 +154,7 @@ A systemd service that automatically restores environment after server reboot.
 #### Register User
 ```bash
 # Add new user to auto-recovery targets
-sudo /data/scripts/register_user.sh username gpu-users
+sudo /data/scripts/user-register.sh username gpu-users
 ```
 
 Registered users are stored in `/data/config/users.txt`.
@@ -162,10 +162,10 @@ Registered users are stored in `/data/config/users.txt`.
 #### Manual Recovery
 ```bash
 # Full recovery (global env + all registered users)
-sudo /data/scripts/auto_recovery.sh
+sudo /data/scripts/ops-recovery.sh
 
 # Dry-run (show plan without execution)
-sudo /data/scripts/auto_recovery.sh --dry-run
+sudo /data/scripts/ops-recovery.sh --dry-run
 ```
 
 #### Check Recovery Log
@@ -182,19 +182,19 @@ Generates alerts when disk usage exceeds threshold.
 #### Manual Execution
 ```bash
 # Default threshold 80%
-sudo /data/scripts/disk_alert.sh
+sudo /data/scripts/ops-disk-alert.sh
 
 # Custom threshold
-sudo /data/scripts/disk_alert.sh --threshold 90
+sudo /data/scripts/ops-disk-alert.sh --threshold 90
 
 # Dry-run (don't write to log)
-sudo /data/scripts/disk_alert.sh --threshold 80 --dry-run
+sudo /data/scripts/ops-disk-alert.sh --threshold 80 --dry-run
 ```
 
 #### Cron Automation (Optional)
 Check disk usage every hour:
 ```bash
-echo '0 * * * * /data/scripts/disk_alert.sh --threshold 80' | sudo crontab -
+echo '0 * * * * /data/scripts/ops-disk-alert.sh --threshold 80' | sudo crontab -
 ```
 
 #### Check Log
@@ -208,7 +208,7 @@ Menu-based TUI integrating all setup tasks.
 
 #### Run
 ```bash
-sudo /data/scripts/setup_wizard.sh
+sudo /data/scripts/admin-wizard.sh
 ```
 
 #### Menu Items
@@ -223,7 +223,7 @@ sudo /data/scripts/setup_wizard.sh
 
 #### List Options (For Testing)
 ```bash
-/data/scripts/setup_wizard.sh --list-options
+/data/scripts/admin-wizard.sh --list-options
 ```
 
 **Note**: Automatically falls back to text menu if dialog/whiptail not available.
@@ -239,7 +239,7 @@ After a server reboot, the SSD is reset, so you need to reconfigure the basic en
 sudo -i
 
 # 2. Restore global environment (Miniconda installation + environment variables)
-/data/scripts/setup_global_after_startup.sh
+/data/scripts/ops-setup-global.sh
 
 # 3. Log out and log back in to apply environment variables
 exit
@@ -262,7 +262,7 @@ sudo adduser username
 sudo usermod -aG homiai username
 
 # 3. Set up user environment (home directory linking, Conda setup, permissions)
-sudo /data/scripts/setup_new_user.sh username
+sudo /data/scripts/user-setup.sh username
 
 # 4. Test: Log in as that user
 su - username
@@ -281,21 +281,21 @@ When restoring a user after server restart or when a user environment has issues
 
 ```bash
 # 1. Restore entire user environment (all settings at once)
-sudo /data/scripts/setup_new_user.sh username
+sudo /data/scripts/user-setup.sh username
 
 # Or perform individual tasks:
 
 # 2a. Only restore home directory link
-sudo /data/scripts/3_create_user_data_dir.sh username
+sudo /data/scripts/user-create-home.sh username
 
 # 2b. Only restore Conda environment
-sudo /data/scripts/4_setup_user_conda.sh username
+sudo /data/scripts/user-setup-conda.sh username
 
 # 2c. Only fix file permissions
-sudo /data/scripts/5_fix_user_permission.sh username
+sudo /data/scripts/user-fix-permissions.sh username
 ```
 
-> **Note**: `setup_new_user.sh` can be safely used not only for setting up new users but also for restoring existing user environments. Existing data is preserved.
+> **Note**: `user-setup.sh` can be safely used not only for setting up new users but also for restoring existing user environments. Existing data is preserved.
 
 ### 🧹 System Maintenance Tasks
 
@@ -303,13 +303,13 @@ Commands for regular maintenance tasks:
 
 ```bash
 # Clean cache (free up disk space)
-sudo /data/scripts/clean_cache.sh --all
+sudo /data/scripts/ops-clean-cache.sh --all
 
 # Clean specific caches
-sudo /data/scripts/clean_cache.sh --conda  # Conda cache
-sudo /data/scripts/clean_cache.sh --pip    # Pip package cache
-sudo /data/scripts/clean_cache.sh --torch  # PyTorch model cache
-sudo /data/scripts/clean_cache.sh --hf     # HuggingFace cache
+sudo /data/scripts/ops-clean-cache.sh --conda  # Conda cache
+sudo /data/scripts/ops-clean-cache.sh --pip    # Pip package cache
+sudo /data/scripts/ops-clean-cache.sh --torch  # PyTorch model cache
+sudo /data/scripts/ops-clean-cache.sh --hf     # HuggingFace cache
 ```
 
 ## 🚶 User Guide
@@ -356,9 +356,9 @@ Packages and models are stored in a central cache and shared:
 
 | Issue | Solution |
 |------|----------|
-| 🔗 Broken home directory symbolic link | `sudo /data/scripts/3_create_user_data_dir.sh <username>` |
-| 🐍 Conda environment issues | `sudo /data/scripts/4_setup_user_conda.sh <username>` |
-| 🔒 File permission issues | `sudo /data/scripts/5_fix_user_permission.sh <username>` |
+| 🔗 Broken home directory symbolic link | `sudo /data/scripts/user-create-home.sh <username>` |
+| 🐍 Conda environment issues | `sudo /data/scripts/user-setup-conda.sh <username>` |
+| 🔒 File permission issues | `sudo /data/scripts/user-fix-permissions.sh <username>` |
 | 🌐 Environment variables not loading | `source /etc/profile.d/global_envs.sh` |
 
 ### 🔒 Permission Issues
@@ -381,14 +381,14 @@ sudo chmod 777 /data/cache/pip
 
 This project consists of the following scripts:
 
-1. `1_install_miniconda3_global.sh`: Global Miniconda installation
-2. `2_install_global_env.sh`: System global environment variable settings (cache paths, etc.)
-3. `3_create_user_data_dir.sh`: Creating user data directory and home links
-4. `4_setup_user_conda.sh`: User-specific Conda environment setup
-5. `5_fix_user_permission.sh`: User data directory permission management
-6. `setup_new_user.sh`: Integrates the above scripts for batch user environment setup
-7. `setup_global_after_startup.sh`: Global environment recovery after system reboot
-8. `clean_cache.sh`: Cache cleanup and disk space recovery
+1. `install-miniconda.sh`: Global Miniconda installation
+2. `install-global-env.sh`: System global environment variable settings (cache paths, etc.)
+3. `user-create-home.sh`: Creating user data directory and home links
+4. `user-setup-conda.sh`: User-specific Conda environment setup
+5. `user-fix-permissions.sh`: User data directory permission management
+6. `user-setup.sh`: Integrates the above scripts for batch user environment setup
+7. `ops-setup-global.sh`: Global environment recovery after system reboot
+8. `ops-clean-cache.sh`: Cache cleanup and disk space recovery
 
 These scripts are located in the `/data/scripts/` path and can be run individually as needed.
 
@@ -408,7 +408,7 @@ While efficient, this setup has several potential risks:
 - **Risk**: Shared cache/model directories are accessible to multiple users, creating risk of malicious code or package installation.
 - **Mitigation**:
   - Only install packages from trusted sources.
-  - Regularly check user permissions: `sudo /data/scripts/5_fix_user_permission.sh <username>`
+  - Regularly check user permissions: `sudo /data/scripts/user-fix-permissions.sh <username>`
 
 ### 3. Resource Contention Issues ⚡
 

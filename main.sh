@@ -105,28 +105,28 @@ clean_cache_menu() {
   
   case $choice in
     1)
-      if sudo -n /data/scripts/clean_cache.sh --conda 2>/dev/null; then
+      if sudo -n /data/scripts/ops-clean-cache.sh --conda 2>/dev/null; then
         echo "[성공] Conda 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     2)
-      if sudo -n /data/scripts/clean_cache.sh --pip 2>/dev/null; then
+      if sudo -n /data/scripts/ops-clean-cache.sh --pip 2>/dev/null; then
         echo "[성공] Pip 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     3)
-      if sudo -n /data/scripts/clean_cache.sh --torch 2>/dev/null; then
+      if sudo -n /data/scripts/ops-clean-cache.sh --torch 2>/dev/null; then
         echo "[성공] PyTorch 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
       fi
       ;;
     4)
-      if sudo -n /data/scripts/clean_cache.sh --hf 2>/dev/null; then
+      if sudo -n /data/scripts/ops-clean-cache.sh --hf 2>/dev/null; then
         echo "[성공] HuggingFace 캐시가 정리되었습니다."
       else
         echo "[실패] 캐시 정리 권한이 없습니다."
@@ -136,7 +136,7 @@ clean_cache_menu() {
       echo "정말 모든 캐시를 정리하시겠습니까? [y/N]"
       read -p "> " confirm
       if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        if sudo -n /data/scripts/clean_cache.sh --all 2>/dev/null; then
+        if sudo -n /data/scripts/ops-clean-cache.sh --all 2>/dev/null; then
           echo "[성공] 모든 캐시가 정리되었습니다."
         else
           echo "[실패] 캐시 정리 권한이 없습니다."
