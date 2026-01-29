@@ -7,6 +7,7 @@ export SYSTEM_CACHE_DIR="/data/system/cache"
 export PIP_CACHE_DIR="/data/system/cache/pip"
 export CONDA_PKGS_DIRS="/data/system/cache/conda/pkgs"
 export CONDA_ENVS_PATH="$HOME/conda/envs"
+export UV_CACHE_DIR="/data/system/cache/uv"
 export npm_config_cache="/data/system/cache/npm"
 export YARN_CACHE_FOLDER="/data/system/cache/yarn"
 # AI 관련 캐시
