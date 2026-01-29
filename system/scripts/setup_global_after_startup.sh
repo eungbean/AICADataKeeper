@@ -8,6 +8,7 @@ set -e
 GROUPNAME=$1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MINICONDA_PATH="/data/system/apps/miniconda3"
+ENV_DST="/etc/profile.d/global_envs.sh"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "[ERROR] 이 스크립트는 root 권한으로 실행해야 합니다."
@@ -29,7 +30,7 @@ fi
 if [ -f "$ENV_DST" ]; then
   echo "[INFO] $ENV_DST already exists. Skipping."
 else
-  "$SCRIPT_DIR/2_install_global_env.sh $GROUPNAME" || {
+  "$SCRIPT_DIR/2_install_global_env.sh" "$GROUPNAME" || {
     echo "[ERROR] 환경 변수 설정 실패"
     exit 1
   }

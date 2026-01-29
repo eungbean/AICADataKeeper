@@ -12,8 +12,8 @@ fi
 
 # 캐시 경로 설정
 MINICONDA_PATH="/data/system/apps/miniconda3"
-CONDA_CACHE="/data/cache/conda/pkgs"
-PIP_CACHE="/data/cache/pip"
+CONDA_CACHE="/data/system/cache/conda/pkgs"
+PIP_CACHE="/data/system/cache/pip"
 TORCH_CACHE="/data/models/torch"
 HF_CACHE="/data/models/huggingface"
 
