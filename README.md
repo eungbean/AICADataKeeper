@@ -4,7 +4,7 @@
 [![EN](https://img.shields.io/badge/lang-English-blue.svg)](README_eng.md)
 
 > **Author**: Eungbean Lee (eungbean@homilabs.ai)  
-> **Organization**: HOMI AI  
+> **Organization**: HOMI AI Inc.
 > **Version**: 2.0.0
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
