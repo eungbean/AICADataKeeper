@@ -25,13 +25,13 @@ user-fix-permissions.sh        → chown user:group recursively
 - `ops-setup-global.sh` → Calls 1, 2 (post-reboot recovery)
 - `user-setup.sh` → Calls 3, 4, 5 (user onboarding/recovery)
 - `ops-recovery.sh` → Calls setup_global + setup_new_user for each user in users.txt
-- `admin-wizard.sh` → Interactive menu calling all setup scripts
+- `admin-wizard.sh` → **DEPRECATED** (replaced by `/data/AICADataKeeper/main.sh`)
 
 ### Utilities (Standalone)
 - `user-register.sh` → Add to users.txt (auto-recovery registry)
 - `ops-clean-cache.sh` → Cleanup conda/pip/torch/hf caches
 - `ops-disk-alert.sh` → Monitor /data partition usage
-- `system-permissions.sh` → Apply ACL to shared directories
+- `system-permissions.sh` → Apply setgid to shared directories
 - `system-sudoers.sh` → Configure selective NOPASSWD for gpu-users
 - `system-cache-config.sh` → Create /etc/{conda/.condarc,pip.conf,npmrc}
 - `install-uv.sh` → Install uv package manager
@@ -40,7 +40,8 @@ user-fix-permissions.sh        → chown user:group recursively
 
 | User Type | Command | Purpose |
 |-----------|---------|---------|
-| **Admin (interactive)** | `sudo admin-wizard.sh` | TUI menu for all tasks |
+| **Admin (interactive)** | `sudo ../main.sh` | **PRIMARY**: TUI menu for all tasks |
+| **Admin (interactive, DEPRECATED)** | `sudo admin-wizard.sh` | Legacy TUI (use main.sh) |
 | **Admin (post-reboot)** | `sudo ops-setup-global.sh` | Restore global environment |
 | **Admin (new user)** | `sudo user-setup.sh <user> <group>` | Onboard user |
 | **Admin (register user)** | `sudo user-register.sh <user> <group>` | Add to auto-recovery |
@@ -126,14 +127,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ## Permission Model
 
-**NEVER use `chmod 777`**. Use ACL:
+**NEVER use `chmod 777`**. Use setgid + umask 002:
 ```bash
-setfacl -d -m g:gpu-users:rwx /path  # Default for new files
 chmod 2775 /path                      # setgid for group inheritance
+echo "umask 002" >> ~/.bashrc         # Each user must set this
 ```
 
 Standard permissions:
-- Shared caches: `2775` + ACL
+- Shared caches: `2775` (drwxrwsr-x) with setgid
 - User homes: `750` (user:group)
 - Scripts: `755` (root:root)
 
@@ -169,8 +170,11 @@ bash -n *.sh
 sudo ./user-setup.sh testuser gpu-users
 sudo ./user-setup.sh testuser gpu-users  # Should not fail
 
-# Verify ACL applied
-getfacl /data/cache/pip | grep "group:gpu-users:rwx"
+# Verify setgid
+ls -ld /data/cache/pip | grep "^d.*s"
+
+# Verify umask
+umask  # Should be 0002
 
 # Verify sudoers syntax
 visudo -c -f /etc/sudoers.d/aica-datakeeper
@@ -178,8 +182,17 @@ visudo -c -f /etc/sudoers.d/aica-datakeeper
 
 ## Notes
 
-- Numbered scripts not meant for direct execution (called by wrappers)
+- **Numbered scripts NOT meant for direct execution** (called by wrappers)
 - All scripts must be idempotent (safe to run multiple times)
 - Script 3 backs up existing directories before symlinking
 - ops-recovery.sh reads users.txt line-by-line (format: `username:groupname`)
-- admin-wizard.sh supports dialog/whiptail/text fallback (auto-detects)
+- **admin-wizard.sh is DEPRECATED** → Use `/data/AICADataKeeper/main.sh` instead
+- **NEVER modify script execution order** → Breaking numbered sequence causes failures
+
+## Critical Reminders
+
+**See `/data/AICADataKeeper/AGENTS.md` for complete anti-pattern list**
+
+- NEVER use `chmod 777` → Use setgid + umask 002
+- NEVER grant `NOPASSWD: ALL` → Only specific commands
+- NEVER run numbered scripts directly → They're called by wrappers

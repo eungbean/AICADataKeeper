@@ -19,31 +19,35 @@ fi
 
 echo "[INFO] Installing uv (fast Python package manager)..."
 
-# 공식 설치 스크립트를 사용하여 uv 설치
-# 이 스크립트는 /usr/local/bin/uv 또는 ~/.cargo/bin/uv에 설치합니다
-if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-  echo "[INFO] uv installation completed successfully."
-else
-  echo "[ERROR] Failed to install uv via official installer."
-  echo "[ERROR] Attempting fallback installation via pip..."
-  
-  # 폴백: pip를 통한 설치 (Miniconda가 설치되어 있어야 함)
-  if command -v pip &> /dev/null; then
-    pip install uv
-    echo "[INFO] uv installed via pip."
-  else
-    echo "[ERROR] Neither curl installer nor pip is available."
-    exit 1
+UV_BIN="/usr/local/bin/uv"
+
+if curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | INSTALLER_NO_MODIFY_PATH=1 sh -s -- --no-modify-path 2>/dev/null; then
+  INSTALLED_PATH=$(find /root/.local/bin /root/.cargo/bin -name "uv" 2>/dev/null | head -1)
+  if [ -n "$INSTALLED_PATH" ]; then
+    mv "$INSTALLED_PATH" "$UV_BIN"
+    chmod 755 "$UV_BIN"
+    echo "[INFO] uv moved to $UV_BIN"
   fi
 fi
 
-# uv 설치 확인
-if ! command -v uv &> /dev/null; then
-  echo "[ERROR] uv installation verification failed."
+if [ ! -f "$UV_BIN" ]; then
+  echo "[INFO] Trying pip installation..."
+  if command -v pip &> /dev/null; then
+    pip install uv -q
+    PIP_UV=$(pip show uv 2>/dev/null | grep "Location" | cut -d' ' -f2)
+    if [ -n "$PIP_UV" ] && [ -f "$PIP_UV/../../../bin/uv" ]; then
+      cp "$PIP_UV/../../../bin/uv" "$UV_BIN"
+      chmod 755 "$UV_BIN"
+    fi
+  fi
+fi
+
+if [ ! -f "$UV_BIN" ]; then
+  echo "[ERROR] uv installation failed"
   exit 1
 fi
 
-echo "[INFO] uv version: $(uv --version)"
+echo "[INFO] uv version: $($UV_BIN --version)"
 
 # 공유 캐시 디렉토리 생성
 echo "[INFO] Setting up shared uv cache directory..."

@@ -2,22 +2,26 @@
 # [02] 시스템 환경 변수 스크립트 설치
 # 역할: /etc/profile.d/global_envs.sh에 공통 환경 변수를 source하는 로더 스크립트 생성
 
+set -e
+
+# 스크립트 디렉토리 기준 경로 설정
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GROUPNAME=${2:-users}
 
-# 캐시 폴더가 없다면 먼저 생성하기
-mkdir -p /data/cache/{pip,conda/pkgs,npm,yarn,python}
-mkdir -p /data/models/{torch,huggingface,comfyui,flux}
+# 공유 캐시/모델 폴더 생성 (pip/uv/npm/yarn은 개인 ~/.cache 사용)
+mkdir -p /data/cache/conda/pkgs
+mkdir -p /data/models/{torch,huggingface/hub,huggingface/datasets,comfyui,flux}
 
-# 캐시 폴더 소유자 및 권한 설정 (모든 사용자가 읽기/쓰기 가능하도록)
-chmod -R 777 /data/cache/{pip,conda/pkgs,npm,yarn,python}
-chmod -R 777 /data/models/{torch,huggingface,comfyui,flux}
+# setgid + 그룹 쓰기 권한 설정
+chmod -R 2775 /data/cache/conda
+chmod -R 2775 /data/models
 
-# 캐시 폴더 소유자 설정 (root가 소유하되 모든 사용자가 사용 가능)
-chown -R root:$GROUPNAME /data/cache/{pip,conda/pkgs,npm,yarn,python}
-chown -R root:$GROUPNAME /data/models/{torch,huggingface,comfyui,flux}
+# 그룹 소유권 설정
+chown -R root:$GROUPNAME /data/cache/conda
+chown -R root:$GROUPNAME /data/models
 
-set -e
-GLOBAL_ENV="/data/config/global_env.sh"
+# 환경 변수 파일 경로 (스크립트 디렉토리 기준)
+GLOBAL_ENV="$SCRIPT_DIR/../config/global_env.sh"
 ENV_DST="/etc/profile.d/global_envs.sh"
 
 if [ "$(id -u)" -ne 0 ]; then

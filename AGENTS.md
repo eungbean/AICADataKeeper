@@ -1,5 +1,15 @@
 # AICADataKeeper - GPU Server Environment Manager
 
+## Reference Resources
+
+**OpenCode UI Theme Reference** (for TUI styling):
+- Theme files: `/data/AICADataKeeper/opencode/packages/ui/src/theme/themes/`
+- Main theme: `oc-1.json` (OC-1 dark/light)
+- Color utilities: `/data/AICADataKeeper/opencode/packages/ui/src/theme/color.ts`
+- TUI components: `/data/AICADataKeeper/opencode/packages/opencode/src/cli/cmd/tui/ui/`
+
+---
+
 ## Project Overview
 
 AICADataKeeper is a multi-user GPU server environment management system designed for NHN Cloud AI infrastructure. It solves the critical challenge of managing volatile 200GB SSD with persistent 70TB HDD storage through symbolic links and shared cache architecture.
@@ -10,7 +20,7 @@ AICADataKeeper is a multi-user GPU server environment management system designed
 - Symbolic links from `/home/username` to `/data/users/username` (persistent storage)
 - Shared package caches (conda, pip, npm, yarn) to avoid duplication
 - Centralized AI model storage (PyTorch, HuggingFace, ComfyUI, Flux)
-- ACL-based permission management for secure multi-user access
+- setgid + umask 002 permission management for secure multi-user access (NFS v3 compatible)
 - Automated recovery after system reboots
 
 **Target Users**: 4-10 member teams sharing GPU resources in research/development environments.
@@ -26,7 +36,7 @@ AICADataKeeper is a multi-user GPU server environment management system designed
   - Conda/Miniconda (primary Python environment manager)
   - uv (fast pip alternative, optional)
 - **Permission Management**: 
-  - ACL (setfacl/getfacl) for fine-grained access control
+  - setgid + umask 002 for group-based access control (NFS v3 compatible)
   - sudoers for selective privilege escalation
 
 ### Infrastructure
@@ -35,7 +45,22 @@ AICADataKeeper is a multi-user GPU server environment management system designed
   - SSD 200GB (volatile, resets on reboot) - system only
   - HDD 50TB (persistent) - mounted at `/data` - user data, caches, models
   - HDD 20TB (backup) - mounted at `/backup`
-- **Filesystem**: ext4/xfs with ACL support required
+- **Filesystem**: ext4/xfs (NFS v3 compatible, no ACL required)
+
+---
+
+## Entry Points
+
+**Primary Interface**: `main.sh` (1251 lines, interactive TUI wizard)
+- **Admin mode** (sudo): Setup wizard, user management, testing, recovery
+- **User mode** (regular): Environment info, disk usage, cache cleanup, guides
+
+**Secondary Entry Points** (called by main.sh or systemd):
+- `ops-recovery.sh` → Systemd auto-recovery service
+- `ops-setup-global.sh` → Post-reboot global environment setup
+- `user-setup.sh` → User onboarding wrapper
+
+**Note**: `admin-wizard.sh` is deprecated and replaced by `main.sh`.
 
 ---
 
@@ -55,7 +80,7 @@ AICADataKeeper is a multi-user GPU server environment management system designed
 │   │   ├── user-fix-permissions.sh           # Fix file ownership
 │   │   ├── user-setup.sh                  # User onboarding wrapper
 │   │   ├── ops-setup-global.sh      # Post-reboot global recovery
-│   │   ├── system-permissions.sh               # Apply ACL permissions
+│   │   ├── system-permissions.sh               # Apply setgid permissions
 │   │   ├── system-sudoers.sh                   # Configure sudoers
 │   │   ├── install-uv.sh                        # Install uv package manager
 │   │   ├── ops-recovery.sh                   # Systemd recovery script
@@ -125,19 +150,19 @@ All scripts follow these patterns:
 
 ### Permission Model
 
-**DO NOT use `chmod 777`**. Use ACL instead:
+**DO NOT use `chmod 777`**. Use setgid + umask 002 instead:
 
 ```bash
-# Set group permissions with ACL
-setfacl -m g:gpu-users:rwx /path/to/shared
-setfacl -d -m g:gpu-users:rwx /path/to/shared  # Default for new files
-
 # Set setgid bit for group inheritance
-chmod g+s /path/to/shared
+chmod 2775 /path/to/shared
+
+# Each user must set umask 002 for group write permissions
+echo "umask 002" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 **Standard Permissions**:
-- Shared caches: `2775` (drwxrwsr-x) with ACL for gpu-users:rwx
+- Shared caches: `2775` (drwxrwsr-x) with setgid for group inheritance
 - User homes: `750` (drwxr-x---) owned by user:group
 - Scripts: `755` (rwxr-xr-x) owned by root:root
 
@@ -157,17 +182,25 @@ Cmnd_Alias DISK_CHECK = /usr/bin/df
 Global environment variables defined in `/data/config/global_env.sh`:
 
 ```bash
-# Cache paths
-export SYSTEM_CACHE_DIR="/data/cache"
-export PIP_CACHE_DIR="/data/cache/pip"
-export CONDA_PKGS_DIRS="/data/cache/conda/pkgs"
-export UV_CACHE_DIR="/data/cache/uv"
+# Hybrid Cache Strategy (v2.0.0):
+# - SHARED: AI models (HF, Torch), Conda packages - large, read-mostly
+# - PER-USER: pip/uv/npm - use default ~/.cache (already on /data via home symlink)
 
-# AI model paths
+# Conda shared cache
+export CONDA_PKGS_DIRS="/data/cache/conda/pkgs"
+export CONDA_ENVS_PATH="$HOME/conda/envs"  # Per-user
+
+# AI model shared caches
+export MODELS_DIR="/data/models"
 export TORCH_HOME="/data/models/torch"
 export HF_HOME="/data/models/huggingface"
-export TRANSFORMERS_CACHE="/data/models/huggingface/transformers"
+export HF_HUB_CACHE="/data/models/huggingface/hub"
 export HF_DATASETS_CACHE="/data/models/huggingface/datasets"
+export COMFYUI_HOME="/data/models/comfyui"
+export FLUX_HOME="/data/models/flux"
+
+# pip/uv/npm caches NOT SET - use defaults:
+# ~/.cache/pip, ~/.cache/uv, ~/.cache/npm (symlinked to /data/users/$USER/.cache)
 ```
 
 Loaded system-wide via `/etc/profile.d/global_envs.sh`.
@@ -256,13 +289,13 @@ Each feature has verification commands (see `.sisyphus/plans/aica-improvement.md
 
 **Example - Permission Setup**:
 ```bash
-# Verify ACL
-getfacl /data/cache/pip | grep "default:group:gpu-users:rwx"
-# Expected: match found
-
 # Verify setgid
 ls -ld /data/cache/pip | grep "^d.*s"
-# Expected: 's' or 'S' in group execute position
+# Expected: 's' or 'S' in group execute position (drwxrwsr-x)
+
+# Verify umask
+umask
+# Expected: 0002
 
 # Test non-admin cache access
 sudo -u testuser sudo -n /data/scripts/ops-clean-cache.sh --help
@@ -326,17 +359,47 @@ If migrating from chmod 777 setup:
 
 ```bash
 # 1. Backup current permissions
-getfacl -R /data > /backup/acl-backup-$(date +%Y%m%d).txt
+ls -laR /data > /backup/permissions-backup-$(date +%Y%m%d).txt
 
 # 2. Apply new permission model
 sudo /data/scripts/system-permissions.sh
 
-# 3. Verify no breakage
-# Test conda/pip installations for existing users
+# 3. Ensure all users set umask 002
+for user in $(cat /data/config/users.txt | cut -d: -f1); do
+  echo "umask 002" >> /data/users/$user/.bashrc
+done
 
-# 4. Rollback if needed
-# setfacl --restore=/backup/acl-backup-YYYYMMDD.txt
+# 4. Verify no breakage
+# Test conda/pip installations for existing users
 ```
+
+---
+
+## Critical Anti-Patterns
+
+**NEVER do these** (explicitly forbidden in this project):
+
+### Permission & Security
+- **NEVER use `chmod 777`** → Use setgid + umask 002 instead
+- **NEVER grant `NOPASSWD: ALL`** → Only specific commands via sudoers
+- **NEVER modify script execution order** → Numbered scripts: 1→2 for global, 3→4→5 for per-user
+
+### Project Scope
+- **DO NOT modify `/data/users/*/` content** → Only permissions
+- **DO NOT remove conda base environment** → Breaks all user environments
+- **DO NOT add package managers** → Conda + uv only (no pixi, poetry, pdm)
+- **DO NOT implement web UI** → CLI only
+- **DO NOT change symlink architecture** → `/home/<user>` → `/data/users/<user>` is fixed
+
+### Script Execution
+- **DO NOT run numbered scripts directly** → They're called by wrappers (ops-setup-global.sh, user-setup.sh)
+- **DO NOT use `admin-wizard.sh`** → Deprecated, use `main.sh` instead
+
+### Deprecated Patterns (v2.0.0)
+- ~~`chmod 777`~~ → Use setgid + umask 002
+- ~~`TRANSFORMERS_CACHE`~~ → Use `HF_HUB_CACHE` instead
+- ~~`PIP_CACHE_DIR`, `UV_CACHE_DIR`~~ → Use default `~/.cache/` (already on `/data`)
+- ~~ACL permissions~~ → NFS v3 incompatible, use setgid + umask 002
 
 ---
 
@@ -347,8 +410,9 @@ sudo /data/scripts/system-permissions.sh
 **Fixed in Improvement Plan**:
 - ~~`ops-setup-global.sh` undefined variable `$ENV_DST`~~ → FIXED
 - ~~Cache path inconsistency (`/data/cache/` vs `/data/cache/`)~~ → FIXED
-- ~~chmod 777 security issues~~ → REPLACED with ACL
+- ~~chmod 777 security issues~~ → REPLACED with setgid + umask 002
 - ~~No auto-recovery service~~ → ADDED systemd service
+- ~~ACL dependency (NFS v3 incompatible)~~ → REMOVED, using setgid + umask 002
 
 ### Constraints
 
@@ -363,7 +427,7 @@ sudo /data/scripts/system-permissions.sh
 - Preserve all existing user data during upgrades
 - Maintain conda compatibility
 - Keep scripts idempotent
-- Verify ACL support before applying (`mount | grep /data` should show `acl` option)
+- Ensure all users set umask 002 in their shell configuration
 
 ### Directory Naming Convention
 
@@ -398,7 +462,11 @@ sudo /data/scripts/user-create-home.sh <username> gpu-users
 sudo /data/scripts/system-permissions.sh
 # or
 sudo chmod 2775 /data/cache/<specific-cache>
-sudo setfacl -m g:gpu-users:rwx /data/cache/<specific-cache>
+sudo chgrp gpu-users /data/cache/<specific-cache>
+
+# Ensure user has umask 002
+echo "umask 002" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 **Conda Environment Not Found**:
@@ -430,7 +498,8 @@ journalctl -u aica-recovery.service -n 50
 **Quarterly**:
 - Backup critical data: `rsync -av /data/users/ /backup/users/`
 - Update Miniconda: Coordinate with all users first
-- Review ACL policies: `getfacl /data/cache/*`
+- Review permissions: `ls -ld /data/cache/*`
+- Verify all users have umask 002 set
 
 ### Upgrade Path
 

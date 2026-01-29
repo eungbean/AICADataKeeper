@@ -40,10 +40,7 @@ mkdir -p "$USER_DATA/.conda/envs" || {
 chown -R "$USERNAME:$GROUPNAME" "$USER_DATA/.conda"
 
 # Conda 설정 파일
-cat > "$USER_DATA/.condarc" << EOF || {
-  echo "[ERROR] .condarc 파일 생성 실패"
-  exit 1
-}
+cat > "$USER_DATA/.condarc" << EOF
 channels:
   - conda-forge
   - defaults
@@ -54,6 +51,10 @@ envs_dirs:
 pkgs_dirs:
   - /data/cache/conda/pkgs
 EOF
+if [ $? -ne 0 ]; then
+  echo "[ERROR] .condarc 파일 생성 실패"
+  exit 1
+fi
 
 chown "$USERNAME:$GROUPNAME" "$USER_DATA/.condarc"
 
@@ -81,16 +82,17 @@ fi
 
 # 사용자별 환경 변수 추가
 if [ -n "$SHELL_RC" ]; then
-  cat >> "$SHELL_RC" << EOF || {
-    echo "[ERROR] 사용자 쉘 설정 파일 수정 실패"
-    exit 1
-  }
+  cat >> "$SHELL_RC" << EOF
 
 # User-specific environment variables
 export USER_DATA="$USER_DATA"
 export CONDA_ENVS_PATH="$USER_DATA/.conda/envs"
 export CONDARC="$USER_DATA/.condarc"
 EOF
+  if [ $? -ne 0 ]; then
+    echo "[ERROR] 사용자 쉘 설정 파일 수정 실패"
+    exit 1
+  fi
   chown "$USERNAME:$GROUPNAME" "$SHELL_RC"
 fi
 

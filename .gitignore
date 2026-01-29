@@ -138,4 +138,4 @@ temp/
 .ssh/
 .gnupg/
 .pgp/
-.gpg/
+.gpg/tmp/
