@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_PATH="$SCRIPT_DIR/scripts"
@@ -143,11 +142,9 @@ admin_initial_setup() {
   CHOICES=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
       --title " 초기 설정 " \
       --item-help \
-      --checklist "\n설치할 항목을 선택하세요:\n\n↑↓ 이동 | Space 선택 | Enter 확인" 18 70 6 \
+      --checklist "\n설치할 항목을 선택하세요:\n\n↑↓ 이동 | Space 선택 | Enter 확인" 16 70 5 \
       "GROUP" "공유 그룹 생성" on \
         "입력한 이름으로 새 그룹 생성" \
-      "ADMIN" "관리자 계정 설정" on \
-        "관리자 계정(기본: ubuntu)을 그룹에 추가하고 환경 설정" \
       "STORAGE" "저장소 권한 할당" on \
         "/data, /backup에 그룹 소유권 할당 (2775 setgid)" \
       "FOLDERS" "폴더 구조 생성" on \
@@ -194,20 +191,7 @@ admin_initial_setup() {
       fi
     fi
     
-    local ADMIN_USER=""
-    if echo "$CHOICES" | grep -q "ADMIN"; then
-      ADMIN_USER=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
-        --title " 관리자 계정 " \
-        --inputbox "\n관리자 계정명 (예: ubuntu):" 10 50 "" \
-        3>&1 1>&2 2>&3)
-      [ $? -ne 0 ] && return
-      if [ -z "$ADMIN_USER" ]; then
-        $DIALOG_CMD --clear --msgbox "관리자 계정명을 입력하세요." 7 35
-        return
-      fi
-    fi
-    
-     if echo "$CHOICES" | grep -qE "ADMIN|STORAGE|FOLDERS|ENV"; then
+     if echo "$CHOICES" | grep -qE "STORAGE|FOLDERS|ENV"; then
        local ALL_USERS=$(getent passwd | cut -d: -f1 | tr '\n' '|' | sed 's/|$//')
        local GROUP_LIST=$(getent group | cut -d: -f1 | grep -vE "^(root|daemon|bin|sys|adm|tty|disk|lp|mail|news|uucp|man|proxy|kmem|dialout|fax|voice|cdrom|floppy|tape|sudo|audio|dip|www-data|backup|operator|list|irc|src|gnats|shadow|utmp|video|sasl|plugdev|staff|games|users|nogroup|systemd|netdev|crontab|messagebus|input|kvm|render|sgx|_ssh|lxd|docker|rdma|ntp|ssl-cert|syslog|uuidd|$ALL_USERS)$" | sort)
       
@@ -251,7 +235,7 @@ admin_initial_setup() {
     
     local LOG_FILE=$(mktemp)
     
-    _run_initial_setup "$GROUPNAME" "$CHOICES" "$ENV_CHOICES" "$NEW_GROUPNAME" "$ADMIN_USER" 2>&1 | \
+    _run_initial_setup "$GROUPNAME" "$CHOICES" "$ENV_CHOICES" "$NEW_GROUPNAME" 2>&1 | \
       sed -u 's/\x1b\[[0-9;]*m//g' | \
       tee "$LOG_FILE" | \
       $DIALOG_CMD --clear --title " 설정 진행 중... " --progressbox 20 65 || true
@@ -280,15 +264,13 @@ admin_initial_setup() {
     
     $DIALOG_CMD --colors --clear --title " 설정 완료 " --msgbox "$SUMMARY" $HEIGHT 62
     
-    local NEXT_MSG="\n\Zb[다음 단계]\ZB 터미널에서 아래 명령어를 실행 후\n           이 프로그램을 다시 실행해주세요:\n"
-    if [ -n "$ADMIN_USER" ]; then
-      NEXT_MSG+="\n  \Zb0.\ZB 관리자 계정으로 로그인:\n     \Z4su - $ADMIN_USER\Zn\n"
-    fi
+    local NEXT_MSG="\n\Zb[다음 단계]\ZB 터미널에서 아래 명령어를 실행하세요:\n"
     NEXT_MSG+="\n  \Zb1.\ZB 그룹 멤버십 적용:\n     \Z4newgrp $GROUPNAME\Zn\n"
     NEXT_MSG+="\n  \Zb2.\ZB 공유 권한 설정 \Z1(필수)\Zn:\n     \Z4echo \"umask 002\" >> ~/.bashrc\n     source ~/.bashrc\Zn\n"
+    NEXT_MSG+="\n  \Zb3.\ZB 사용자 추가:\n     \Z4sudo ./main.sh → 사용자 추가\Zn\n"
     NEXT_MSG+="\n\Z3※ 위 명령어는 초기 설정 후 한 번만 실행\Zn"
     
-    $DIALOG_CMD --colors --clear --title " 다음 단계 안내 " --msgbox "$NEXT_MSG" 20 55
+    $DIALOG_CMD --colors --clear --title " 다음 단계 안내 " --msgbox "$NEXT_MSG" 18 55
     rm -f "$LOG_FILE"
 }
 
@@ -297,18 +279,15 @@ _run_initial_setup() {
   local CHOICES="$2"
   local ENV_CHOICES="$3"
   local NEW_GROUPNAME="$4"
-  local ADMIN_USER="$5"
-  local DATA_OWNER="${ADMIN_USER:-root}"
   
   _print_plan() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  설치 계획:"
     echo "$CHOICES" | grep -q "GROUP" && echo "  [ ] 1. 그룹 생성" || echo "  [-] 1. 그룹 생성 (건너뜀)"
-    echo "$CHOICES" | grep -q "ADMIN" && echo "  [ ] 2. 관리자 계정" || echo "  [-] 2. 관리자 계정 (건너뜀)"
-    echo "$CHOICES" | grep -q "STORAGE" && echo "  [ ] 3. 저장소 권한" || echo "  [-] 3. 저장소 권한 (건너뜀)"
-    echo "$CHOICES" | grep -q "FOLDERS" && echo "  [ ] 4. 폴더 구조" || echo "  [-] 4. 폴더 구조 (건너뜀)"
-    echo "$CHOICES" | grep -q "ENV" && echo "  [ ] 5. 개발환경" || echo "  [-] 5. 개발환경 (건너뜀)"
-    echo "$CHOICES" | grep -q "SUDOERS" && echo "  [ ] 6. sudoers" || echo "  [-] 6. sudoers (건너뜀)"
+    echo "$CHOICES" | grep -q "STORAGE" && echo "  [ ] 2. 저장소 권한" || echo "  [-] 2. 저장소 권한 (건너뜀)"
+    echo "$CHOICES" | grep -q "FOLDERS" && echo "  [ ] 3. 폴더 구조" || echo "  [-] 3. 폴더 구조 (건너뜀)"
+    echo "$CHOICES" | grep -q "ENV" && echo "  [ ] 4. 개발환경" || echo "  [-] 4. 개발환경 (건너뜀)"
+    echo "$CHOICES" | grep -q "SUDOERS" && echo "  [ ] 5. sudoers" || echo "  [-] 5. sudoers (건너뜀)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
   }
@@ -316,7 +295,7 @@ _run_initial_setup() {
   _print_plan
   
   if echo "$CHOICES" | grep -q "GROUP"; then
-    ui_step "1/6" "그룹 생성 중..."
+    ui_step "1/5" "그룹 생성 중..."
     local CREATE_GROUP="${NEW_GROUPNAME:-$GROUPNAME}"
     if getent group "$CREATE_GROUP" > /dev/null 2>&1; then
       ui_info "그룹 '$CREATE_GROUP' 이미 존재"
@@ -330,39 +309,11 @@ _run_initial_setup() {
     echo ""
   fi
   
-  if echo "$CHOICES" | grep -q "ADMIN"; then
-    ui_step "2/6" "관리자 계정 설정 중..."
-    if [ -n "$ADMIN_USER" ]; then
-      if id "$ADMIN_USER" &>/dev/null; then
-        ui_info "사용자 '$ADMIN_USER' 존재 확인"
-        if usermod -aG "$GROUPNAME" "$ADMIN_USER" 2>/dev/null; then
-          ui_success "'$ADMIN_USER' → '$GROUPNAME' 그룹 추가됨"
-        else
-          ui_error "'$ADMIN_USER' 그룹 추가 실패"
-        fi
-        if [ -f "$SCRIPTS_PATH/user-setup.sh" ]; then
-          if "$SCRIPTS_PATH/user-setup.sh" "$ADMIN_USER" "$GROUPNAME" > /dev/null 2>&1; then
-            ui_success "'$ADMIN_USER' 환경 설정 완료"
-          else
-            ui_error "'$ADMIN_USER' 환경 설정 실패"
-          fi
-        fi
-        if [ -f "$SCRIPTS_PATH/user-register.sh" ]; then
-          "$SCRIPTS_PATH/user-register.sh" "$ADMIN_USER" "$GROUPNAME" > /dev/null 2>&1 || true
-          ui_success "'$ADMIN_USER' 자동복구 등록됨"
-        fi
-      else
-        ui_error "사용자 '$ADMIN_USER' 존재하지 않음"
-      fi
-    fi
-    echo ""
-  fi
-  
   if echo "$CHOICES" | grep -q "STORAGE"; then
-    ui_step "3/6" "저장소 권한 할당 중..."
+    ui_step "2/5" "저장소 권한 할당 중..."
     if [ -d /data ]; then
-      if chown "$DATA_OWNER":"$GROUPNAME" /data 2>/dev/null && chmod 2775 /data 2>/dev/null; then
-        ui_success "/data → $DATA_OWNER:$GROUPNAME (2775)"
+      if chown root:"$GROUPNAME" /data 2>/dev/null && chmod 2775 /data 2>/dev/null; then
+        ui_success "/data → root:$GROUPNAME (2775)"
       else
         ui_error "/data 권한 설정 실패 (그룹 '$GROUPNAME' 확인)"
       fi
@@ -370,8 +321,8 @@ _run_initial_setup() {
       ui_warn "/data 디렉토리 없음"
     fi
     if [ -d /backup ]; then
-      if chown "$DATA_OWNER":"$GROUPNAME" /backup 2>/dev/null && chmod 2775 /backup 2>/dev/null; then
-        ui_success "/backup → $DATA_OWNER:$GROUPNAME (2775)"
+      if chown root:"$GROUPNAME" /backup 2>/dev/null && chmod 2775 /backup 2>/dev/null; then
+        ui_success "/backup → root:$GROUPNAME (2775)"
       else
         ui_error "/backup 권한 설정 실패"
       fi
@@ -382,7 +333,7 @@ _run_initial_setup() {
   fi
   
   if echo "$CHOICES" | grep -q "FOLDERS"; then
-    ui_step "4/6" "폴더 구조 생성 중..."
+    ui_step "3/5" "폴더 구조 생성 중..."
     local FOLDERS=(
       "/data/users"
       "/data/models/huggingface/hub"
@@ -411,7 +362,7 @@ _run_initial_setup() {
   fi
   
   if echo "$CHOICES" | grep -q "ENV"; then
-    ui_step "5/6" "개발환경 설정 중..."
+    ui_step "4/5" "개발환경 설정 중..."
     
     if echo "$ENV_CHOICES" | grep -q "CONDA"; then
       ui_info "Miniconda 설치..."
@@ -468,7 +419,7 @@ _run_initial_setup() {
   fi
   
   if echo "$CHOICES" | grep -q "SUDOERS"; then
-    ui_step "6/6" "sudoers 설정 중..."
+    ui_step "5/5" "sudoers 설정 중..."
     if [ -f "$SCRIPTS_PATH/system-sudoers.sh" ]; then
       if "$SCRIPTS_PATH/system-sudoers.sh" > /dev/null 2>&1; then
         ui_success "sudoers 설정 완료"
@@ -505,12 +456,14 @@ admin_add_user() {
        return 0
      fi
    else
-     $DIALOG_CMD --infobox "사용자 생성 중..." 3 25
-     adduser --disabled-password --gecos "" "$USERNAME" >/dev/null 2>&1 || {
-       $DIALOG_CMD --clear --msgbox "사용자 생성 실패" 6 25
-       return 1
-     }
-   fi
+   $DIALOG_CMD --infobox "사용자 생성 중..." 3 25
+      adduser --disabled-password --gecos "" "$USERNAME" >/dev/null 2>&1 || {
+        $DIALOG_CMD --clear --msgbox "사용자 생성 실패" 6 25
+        return 1
+      }
+      echo "$USERNAME:0000" | chpasswd
+      chage -d 0 "$USERNAME"
+    fi
   
   # Build group list for checklist (exclude system groups and personal groups)
   local ALL_USERS=$(getent passwd | cut -d: -f1 | tr '\n' '|' | sed 's/|$//')
@@ -561,88 +514,46 @@ admin_add_user() {
     SSH_CHOICE=3
   fi
   
-  USER_HOME="/data/users/$USERNAME"
-  SSH_DIR="$USER_HOME/.ssh"
+  local KEY_TYPE="ed25519"
+  local SSH_PUBKEY=""
   
   case $SSH_CHOICE in
     1)
-      mkdir -p "$SSH_DIR"
       touch /tmp/ssh_key_input.txt
       $DIALOG_CMD --clear --editbox /tmp/ssh_key_input.txt 20 70 2>/tmp/ssh_key_output.txt
       if [ $? -eq 0 ] && [ -s /tmp/ssh_key_output.txt ]; then
-        cat /tmp/ssh_key_output.txt > "$SSH_DIR/authorized_keys"
-        chmod 700 "$SSH_DIR"
-        chmod 600 "$SSH_DIR/authorized_keys"
-        chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
+        SSH_PUBKEY=$(cat /tmp/ssh_key_output.txt)
       fi
       rm -f /tmp/ssh_key_input.txt /tmp/ssh_key_output.txt
       ;;
     2)
-        echo ""
-        KEY_TYPE=$($DIALOG_CMD --clear --menu "SSH 키 타입 선택" 12 50 3 \
-          "ed25519" "Ed25519 (권장, 빠르고 안전)" \
-          "rsa" "RSA 4096-bit (호환성 좋음)" \
-          "ecdsa" "ECDSA (타원곡선)" \
-          3>&1 1>&2 2>&3)
-        if [ $? -ne 0 ]; then
-          KEY_TYPE="ed25519"
-        fi
-      
-       mkdir -p "$SSH_DIR"
-       if [ "$KEY_TYPE" = "rsa" ]; then
-         ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
-       else
-         ssh-keygen -t "$KEY_TYPE" -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
-       fi
-       cat "$SSH_DIR/id_$KEY_TYPE.pub" >> "$SSH_DIR/authorized_keys"
-      chmod 700 "$SSH_DIR"
-      chmod 600 "$SSH_DIR/authorized_keys"
-      chmod 600 "$SSH_DIR/id_$KEY_TYPE"
-      chmod 644 "$SSH_DIR/id_$KEY_TYPE.pub"
-      chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
-      
-       # Create temp file with private key + instructions
-       TEMP_KEY_FILE=$(mktemp)
-       {
-         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-         echo "  SSH 개인키 (Private Key)"
-         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-         echo ""
-         echo "⚠️  이 키는 다시 표시되지 않습니다! 반드시 복사하세요."
-         echo ""
-         cat "$SSH_DIR/id_$KEY_TYPE"
-         echo ""
-         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-         echo ""
-         echo "[사용 방법]"
-         echo ""
-         echo "1. 위 개인키를 복사하여 로컬에 저장:"
-         echo "   ~/.ssh/id_${KEY_TYPE}_${USERNAME}"
-         echo ""
-         echo "2. 권한 설정:"
-         echo "   chmod 600 ~/.ssh/id_${KEY_TYPE}_${USERNAME}"
-         echo ""
-         echo "3. SSH 접속:"
-         echo "   ssh -i ~/.ssh/id_${KEY_TYPE}_${USERNAME} ${USERNAME}@<서버IP>"
-         echo ""
-       } > "$TEMP_KEY_FILE"
-       
-       # Display with editbox (allows copy)
-       $DIALOG_CMD --clear --title " ⚠️  개인키 복사 필수 " --editbox "$TEMP_KEY_FILE" 30 75
-       
-       # Cleanup
-       rm -f "$TEMP_KEY_FILE"
-      ;;
-    3)
-      ;;
-    *)
+      KEY_TYPE=$($DIALOG_CMD --clear --menu "SSH 키 타입 선택" 12 50 3 \
+        "ed25519" "Ed25519 (권장, 빠르고 안전)" \
+        "rsa" "RSA 4096-bit (호환성 좋음)" \
+        "ecdsa" "ECDSA (타원곡선)" \
+        3>&1 1>&2 2>&3)
+      if [ $? -ne 0 ]; then
+        KEY_TYPE="ed25519"
+      fi
       ;;
   esac
+  
+  local SHELL_CHOICE=$($DIALOG_CMD --clear --menu "쉘 선택" 14 60 4 \
+    "bash" "Bash (기본)" \
+    "zsh-minimal" "Zsh + oh-my-zsh (minimal)" \
+    "zsh-full" "Zsh + oh-my-zsh + plugins (full)" \
+    "skip" "건너뛰기" \
+    3>&1 1>&2 2>&3)
+  if [ $? -ne 0 ]; then
+    SHELL_CHOICE="bash"
+  fi
+  [ "$SHELL_CHOICE" = "skip" ] && SHELL_CHOICE="bash"
   
   local LOG_FILE=$(mktemp)
   local SSH_STATUS="건너뜀"
   [ "$SSH_CHOICE" = "1" ] && SSH_STATUS="공개키 등록"
   [ "$SSH_CHOICE" = "2" ] && SSH_STATUS="새 키 생성 ($KEY_TYPE)"
+  local SHELL_STATUS="$SHELL_CHOICE"
   
   {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -661,30 +572,97 @@ admin_add_user() {
     echo "  [3/5] SSH 키 설정"
     echo "  → $SSH_STATUS"
     echo ""
-    echo "  [4/5] 환경 설정"
+    echo "  [4/5] 쉘 설정"
+    echo "  → $SHELL_STATUS"
+    echo ""
+    echo "  [5/6] 환경 설정"
   } > "$LOG_FILE"
   
   if [ -f "$SCRIPTS_PATH/user-setup.sh" ]; then
-    "$SCRIPTS_PATH/user-setup.sh" "$USERNAME" "$GROUPNAME" 2>&1 | \
-      sed -u 's/\x1b\[[0-9;]*m//g' | \
-      while IFS= read -r line; do
-        if [[ "$line" == *"완료"* ]]; then
-          echo "  ✓ $line"
-        elif [[ "$line" == *"[ERROR]"* ]]; then
-          echo "  ✗ $line"
-        elif [[ "$line" == *"[INFO]"* ]]; then
-          echo "  → ${line#*\[INFO\] }"
-        fi
-      done >> "$LOG_FILE"
-    echo "" >> "$LOG_FILE"
-    echo "  [5/5] 완료" >> "$LOG_FILE"
-    echo "  ✓ 사용자 '$USERNAME' 설정 완료" >> "$LOG_FILE"
+    {
+      cat "$LOG_FILE"
+      "$SCRIPTS_PATH/user-setup.sh" "$USERNAME" "$GROUPNAME" "$SHELL_CHOICE" 2>&1 | \
+        sed -u 's/\x1b\[[0-9;]*m//g' | \
+        while IFS= read -r line; do
+          if [[ "$line" == *"완료"* ]]; then
+            echo "  ✓ $line"
+          elif [[ "$line" == *"[ERROR]"* ]]; then
+            echo "  ✗ $line"
+          elif [[ "$line" == *"[INFO]"* ]]; then
+            echo "  → ${line#*\[INFO\] }"
+          fi
+        done
+      echo ""
+      echo "  [6/6] 완료"
+      echo "  ✓ 사용자 '$USERNAME' 설정 완료"
+    } | tee "$LOG_FILE" | $DIALOG_CMD --clear --title " 사용자 추가 " --progressbox 20 60
   else
     echo "  ✗ user-setup.sh 없음" >> "$LOG_FILE"
     cat "$LOG_FILE" | $DIALOG_CMD --clear --title " 오류 " --programbox 20 60
     rm -f "$LOG_FILE"
     return 1
   fi
+  
+  USER_HOME="/data/users/$USERNAME"
+  SSH_DIR="$USER_HOME/.ssh"
+  
+  chown "$USERNAME:$GROUPNAME" "$USER_HOME"
+  chmod 750 "$USER_HOME"
+  
+  case $SSH_CHOICE in
+    1)
+      if [ -n "$SSH_PUBKEY" ]; then
+        mkdir -p "$SSH_DIR"
+        echo "$SSH_PUBKEY" > "$SSH_DIR/authorized_keys"
+        chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
+        chmod 700 "$SSH_DIR"
+        chmod 600 "$SSH_DIR/authorized_keys"
+      fi
+      ;;
+    2)
+      mkdir -p "$SSH_DIR"
+      if [ "$KEY_TYPE" = "rsa" ]; then
+        ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
+      else
+        ssh-keygen -t "$KEY_TYPE" -f "$SSH_DIR/id_$KEY_TYPE" -N "" -C "$USERNAME@aica"
+      fi
+      cat "$SSH_DIR/id_$KEY_TYPE.pub" >> "$SSH_DIR/authorized_keys"
+      chown -R "$USERNAME:$GROUPNAME" "$SSH_DIR"
+      chmod 700 "$SSH_DIR"
+      chmod 600 "$SSH_DIR/authorized_keys"
+      chmod 600 "$SSH_DIR/id_$KEY_TYPE"
+      chmod 644 "$SSH_DIR/id_$KEY_TYPE.pub"
+      
+      clear
+      echo ""
+      echo -e "${C_ERROR}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+      echo -e "${C_ERROR}  ⚠️  SSH 개인키 (Private Key) - 반드시 복사하세요!${C_RESET}"
+      echo -e "${C_ERROR}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+      echo ""
+      echo -e "${C_WARNING}이 키는 다시 표시되지 않습니다!${C_RESET}"
+      echo ""
+      cat "$SSH_DIR/id_$KEY_TYPE"
+      echo ""
+      echo -e "${C_MUTED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+      echo ""
+      echo -e "${C_TEXT}[사용 방법]${C_RESET}"
+      echo ""
+      echo -e "${C_MUTED}# 1. 위 개인키를 로컬에 저장${C_RESET}"
+      echo -e "${C_TEXT}cat > ~/.ssh/id_${KEY_TYPE}_${USERNAME} << 'EOF'${C_RESET}"
+      echo -e "${C_MUTED}(위 개인키 붙여넣기 후 EOF 입력)${C_RESET}"
+      echo ""
+      echo -e "${C_MUTED}# 2. 권한 설정${C_RESET}"
+      echo -e "${C_TEXT}chmod 600 ~/.ssh/id_${KEY_TYPE}_${USERNAME}${C_RESET}"
+      echo ""
+      echo -e "${C_MUTED}# 3. SSH 접속${C_RESET}"
+      echo -e "${C_TEXT}ssh -i ~/.ssh/id_${KEY_TYPE}_${USERNAME} ${USERNAME}@<서버IP>${C_RESET}"
+      echo ""
+      echo -e "${C_MUTED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+      echo ""
+      echo -e "${C_WARNING}복사를 완료했으면 Enter 키를 누르세요...${C_RESET}"
+      read -r
+      ;;
+  esac
   
   echo "" >> "$LOG_FILE"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$LOG_FILE"
@@ -703,22 +681,347 @@ admin_add_user() {
     SUMMARY+="$line\n"
   done < "$LOG_FILE"
   
-  $DIALOG_CMD --colors --clear --title " 사용자 추가 완료 " --msgbox "$SUMMARY" 24 55
-  
-  # Next steps message
-  local NEXT_STEPS="\n[사용자 전달 사항]\n\n"
-  NEXT_STEPS+="1. SSH 접속:\n"
-  NEXT_STEPS+="   ssh -i <개인키> $USERNAME@<서버IP>\n\n"
-  NEXT_STEPS+="2. 비밀번호 설정 (sudo 사용 시 필요):\n"
-  NEXT_STEPS+="   passwd\n\n"
-  NEXT_STEPS+="3. 사용자 정보 등록 (선택):\n"
-  NEXT_STEPS+="   chfn\n\n"
-  NEXT_STEPS+="4. 공유 권한 설정 (필수):\n"
-  NEXT_STEPS+="   echo \"umask 002\" >> ~/.bashrc && source ~/.bashrc\n"
-  
-  $DIALOG_CMD --clear --title " 다음 단계 안내 " --msgbox "$NEXT_STEPS" 18 60
+  clear
+  echo ""
+  echo -e "${C_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+  echo -e "${C_SUCCESS}  ✓ 사용자 추가 완료: $USERNAME${C_RESET}"
+  echo -e "${C_SUCCESS}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+  echo ""
+  cat "$LOG_FILE"
+  echo ""
+  echo -e "${C_PRIMARY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+  echo -e "${C_PRIMARY}  [사용자 전달 사항] - 아래 내용을 사용자에게 전달하세요${C_RESET}"
+  echo -e "${C_PRIMARY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}# 1. 초기 비밀번호: 0000${C_RESET}"
+  echo -e "${C_WARNING}   ※ 첫 로그인 시 새 비밀번호로 변경 필수${C_RESET}"
+  echo -e "${C_WARNING}   ※ 비밀번호 변경 후 자동으로 접속 종료됨 (재접속 필요)${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}# 2. SSH 접속${C_RESET}"
+  echo -e "${C_TEXT}ssh $USERNAME@<서버IP>${C_RESET}"
+  echo -e "${C_MUTED}   Old Password: 0000${C_RESET}"
+  echo -e "${C_MUTED}   New Password: (새 비밀번호 입력)${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}# 3. 비밀번호 변경 후 재접속${C_RESET}"
+  echo -e "${C_TEXT}ssh $USERNAME@<서버IP>${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}# 4. 사용자 정보 등록 (선택)${C_RESET}"
+  echo -e "${C_TEXT}chfn${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}# 5. 환경 설정 적용 (재로그인 또는 아래 실행)${C_RESET}"
+  echo -e "${C_TEXT}source ~/.bashrc${C_RESET}"
+  echo ""
+  echo -e "${C_MUTED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+  echo ""
+  echo -e "${C_WARNING}복사를 완료했으면 Enter 키를 누르세요...${C_RESET}"
+  read -r
   
   rm -f "$LOG_FILE"
+}
+
+admin_delete_user() {
+  # Build user list from /data/users/ directory
+  local -a USER_ITEMS=()
+  local user_count=0
+  
+  if [ -d /data/users ]; then
+    for userdir in /data/users/*/; do
+      [ -d "$userdir" ] || continue
+      local username=$(basename "$userdir")
+      # Skip if not a real user
+      id "$username" &>/dev/null || continue
+      USER_ITEMS+=("$username" "$username")
+      ((user_count++)) || true
+    done
+  fi
+  
+  if [ $user_count -eq 0 ]; then
+    $DIALOG_CMD --clear --msgbox "삭제할 수 있는 사용자가 없습니다." 7 40
+    return 0
+  fi
+  
+  # Select user to delete
+  local USERNAME=""
+  USERNAME=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
+    --title " 사용자 삭제 " \
+    --menu "\n삭제할 사용자를 선택하세요:" 15 50 6 \
+    "${USER_ITEMS[@]}" \
+    3>&1 1>&2 2>&3)
+  
+  [ $? -ne 0 ] && return 0
+  [ -z "$USERNAME" ] && return 0
+  
+  local USER_HOME="/data/users/$USERNAME"
+  local USER_SIZE=$(du -sh "$USER_HOME" 2>/dev/null | cut -f1 || echo "알 수 없음")
+  local USER_GROUPS=$(id -nG "$USERNAME" 2>/dev/null | tr ' ' ', ' || echo "알 수 없음")
+  local USER_LOGGED_IN=""
+  
+  if who | grep -q "^${USERNAME} "; then
+    USER_LOGGED_IN=$(who | grep "^${USERNAME} " | wc -l)
+  fi
+  
+  if [ -n "$USER_LOGGED_IN" ]; then
+    $DIALOG_CMD --colors --clear --backtitle "AICADataKeeper v${VERSION}" \
+      --title " ⚠️  로그인 중인 사용자 " \
+      --yesno "\n\\Z1\\Zb주의: '$USERNAME' 사용자가 현재 로그인 중입니다!\\ZB\\Zn\n\n세션 수: $USER_LOGGED_IN\n\n로그인 중인 사용자는 삭제할 수 없습니다.\n사용자를 먼저 로그아웃시키거나 세션을 강제 종료해야 합니다.\n\n\\Zb강제로 세션을 종료하고 삭제하시겠습니까?\\ZB" 15 60
+    
+    if [ $? -ne 0 ]; then
+      return 0
+    fi
+    
+    pkill -KILL -u "$USERNAME" 2>/dev/null
+    sleep 1
+  fi
+  
+  local WARNING_MSG="\n"
+  WARNING_MSG+="\\Z1\\Zb⚠️  경고: 이 작업은 되돌릴 수 없습니다!\\ZB\\Zn\n\n"
+  WARNING_MSG+="삭제 대상 사용자: \\Zb$USERNAME\\ZB\n"
+  WARNING_MSG+="홈 디렉토리: $USER_HOME\n"
+  WARNING_MSG+="데이터 크기: $USER_SIZE\n"
+  WARNING_MSG+="소속 그룹: $USER_GROUPS\n\n"
+  WARNING_MSG+="\\Z1삭제 시 수행되는 작업:\\Zn\n"
+  WARNING_MSG+="  • Linux 사용자 계정 삭제\n"
+  WARNING_MSG+="  • 자동 복구 목록에서 제거\n"
+  WARNING_MSG+="  • /home/$USERNAME 심볼릭 링크 제거\n"
+  
+  $DIALOG_CMD --colors --clear --backtitle "AICADataKeeper v${VERSION}" \
+    --title " ⚠️  사용자 삭제 경고 " \
+    --yesno "$WARNING_MSG" 18 60
+  
+  [ $? -ne 0 ] && return 0
+  
+  # Ask about home directory deletion
+  local DELETE_HOME="no"
+  $DIALOG_CMD --colors --clear --backtitle "AICADataKeeper v${VERSION}" \
+    --title " 홈 디렉토리 삭제 " \
+    --yesno "\n\\Z1홈 디렉토리도 삭제하시겠습니까?\\Zn\n\n경로: $USER_HOME\n크기: $USER_SIZE\n\n\\Zb이 작업은 되돌릴 수 없습니다!\\ZB" 12 55
+  
+  if [ $? -eq 0 ]; then
+    DELETE_HOME="yes"
+  fi
+  
+  # Final confirmation with username input
+  local CONFIRM_INPUT=""
+  CONFIRM_INPUT=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
+    --title " 최종 확인 " \
+    --inputbox "\n정말로 삭제하려면 사용자명을 입력하세요:\n\n삭제 대상: $USERNAME" 12 50 "" \
+    3>&1 1>&2 2>&3)
+  
+  [ $? -ne 0 ] && return 0
+  
+  if [ "$CONFIRM_INPUT" != "$USERNAME" ]; then
+    $DIALOG_CMD --clear --msgbox "사용자명이 일치하지 않습니다.\n삭제가 취소되었습니다." 8 45
+    return 0
+  fi
+  
+  # Perform deletion
+  local LOG_FILE=$(mktemp)
+  {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  사용자 삭제: $USERNAME"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    # 1. Remove from users.txt
+    echo "  [1/4] 자동 복구 목록에서 제거"
+    if [ -f /data/config/users.txt ]; then
+      if grep -q "^${USERNAME}:" /data/config/users.txt 2>/dev/null; then
+        sed -i "/^${USERNAME}:/d" /data/config/users.txt
+        echo "  ✓ users.txt에서 제거됨"
+      else
+        echo "  → users.txt에 등록되지 않음"
+      fi
+    else
+      echo "  → users.txt 파일 없음"
+    fi
+    echo ""
+    
+    # 2. Remove home symlink
+    echo "  [2/4] 심볼릭 링크 제거"
+    if [ -L "/home/$USERNAME" ]; then
+      rm -f "/home/$USERNAME"
+      echo "  ✓ /home/$USERNAME 링크 제거됨"
+    else
+      echo "  → /home/$USERNAME 심볼릭 링크 없음"
+    fi
+    echo ""
+    
+    # 3. Delete Linux user
+    echo "  [3/4] Linux 사용자 삭제"
+    if id "$USERNAME" &>/dev/null; then
+      if userdel "$USERNAME" 2>/dev/null; then
+        echo "  ✓ 사용자 '$USERNAME' 삭제됨"
+      else
+        echo "  ✗ 사용자 삭제 실패"
+      fi
+    else
+      echo "  → 사용자 '$USERNAME' 존재하지 않음"
+    fi
+    echo ""
+    
+    # 4. Delete home directory (optional)
+    echo "  [4/4] 홈 디렉토리"
+    if [ "$DELETE_HOME" = "yes" ]; then
+      if [ -d "$USER_HOME" ]; then
+        rm -rf "$USER_HOME"
+        echo "  ✓ $USER_HOME 삭제됨"
+      else
+        echo "  → 홈 디렉토리 없음"
+      fi
+    else
+      echo "  → 보존됨 ($USER_HOME)"
+    fi
+    echo ""
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  ✓ 사용자 삭제 완료"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  } > "$LOG_FILE" 2>&1
+  
+  # Show result with colors
+  local SUMMARY="\n"
+  while IFS= read -r line; do
+    if [[ "$line" == *"✓"* ]]; then
+      line="${line//✓/\\Z2✓\\Zn}"
+    elif [[ "$line" == *"✗"* ]]; then
+      line="${line//✗/\\Z1✗\\Zn}"
+    elif [[ "$line" == *"→"* ]]; then
+      line="${line//→/\\Z4→\\Zn}"
+    elif [[ "$line" == *"["* && "$line" == *"]"* ]]; then
+      line="\\Zb$line\\ZB"
+    fi
+    SUMMARY+="$line\n"
+  done < "$LOG_FILE"
+  
+  $DIALOG_CMD --colors --clear --title " 삭제 완료 " --msgbox "$SUMMARY" 22 55
+  
+  rm -f "$LOG_FILE"
+}
+
+admin_install_packages() {
+  local SELECTED_PACKAGES=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
+    --title " 글로벌 패키지 설치 " \
+    --checklist "\n설치할 패키지를 선택하세요:\n\n↑↓ 이동 | Space 선택 | Enter 확인" 18 70 6 \
+    "oh-my-opencode" "AI 코딩 어시스턴트 (oh-my-opencode)" off \
+    "cli_tools" "CLI 도구 (fzf, ripgrep, fd, bat)" off \
+    "neovim" "현대적 vim 에디터" off \
+    "btop" "시스템 모니터" off \
+    "nvtop" "GPU 모니터" off \
+    "ruff" "빠른 Python 린터" off \
+    3>&1 1>&2 2>&3)
+  
+  if [ $? -ne 0 ] || [ -z "$SELECTED_PACKAGES" ]; then
+    return 0
+  fi
+  
+  SELECTED_PACKAGES=$(echo "$SELECTED_PACKAGES" | tr -d '"')
+  
+  local LOG_FILE=$(mktemp)
+  local RESULTS=""
+  local TOTAL=$(echo "$SELECTED_PACKAGES" | wc -w)
+  local CURRENT=0
+  
+  # 패키지 목록 업데이트
+  $DIALOG_CMD --infobox "패키지 목록 업데이트 중..." 3 35
+  apt-get update -qq >/dev/null 2>&1 || true
+  
+  for pkg in $SELECTED_PACKAGES; do
+    CURRENT=$((CURRENT + 1))
+    
+    case $pkg in
+      oh-my-opencode)
+        # Step 1: bun
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] oh-my-opencode 설치 중...\n\n[1/3] bun 설치 확인..." 6 45
+        local BUN_OK=false
+        if bun --version &>/dev/null; then
+          BUN_OK=true
+          RESULTS="${RESULTS}✓ bun (이미 설치됨)\n"
+        else
+          rm -f /usr/local/bin/bun /usr/local/bin/bunx 2>/dev/null || true
+          bash -c 'curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash' </dev/null >>"$LOG_FILE" 2>&1 || true
+          export PATH="/usr/local/bin:$PATH"
+          if [ -x /usr/local/bin/bun ]; then
+            ln -sf /usr/local/bin/bun /usr/local/bin/bunx 2>/dev/null || true
+            BUN_OK=true
+            RESULTS="${RESULTS}✓ bun 설치 완료\n"
+          else
+            RESULTS="${RESULTS}⚠ bun 설치 실패\n"
+          fi
+        fi
+        
+        # Step 2: opencode CLI
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] oh-my-opencode 설치 중...\n\n[2/3] opencode CLI 설치..." 6 45
+        local OPENCODE_BIN=""
+        if opencode --version &>/dev/null; then
+          OPENCODE_BIN=$(which opencode)
+          RESULTS="${RESULTS}✓ opencode CLI (이미 설치됨)\n"
+        elif [ -f /root/.opencode/bin/opencode ]; then
+          OPENCODE_BIN="/root/.opencode/bin/opencode"
+          ln -sf "$OPENCODE_BIN" /usr/local/bin/opencode 2>/dev/null || true
+          RESULTS="${RESULTS}✓ opencode CLI (링크 생성)\n"
+        elif [ -f /home/ubuntu/.opencode/bin/opencode ]; then
+          OPENCODE_BIN="/home/ubuntu/.opencode/bin/opencode"
+          ln -sf "$OPENCODE_BIN" /usr/local/bin/opencode 2>/dev/null || true
+          RESULTS="${RESULTS}✓ opencode CLI (기존 설치 링크)\n"
+        else
+          bash -c 'curl -fsSL https://opencode.ai/install.sh | bash' </dev/null >>"$LOG_FILE" 2>&1 || true
+          if [ -f /root/.opencode/bin/opencode ]; then
+            OPENCODE_BIN="/root/.opencode/bin/opencode"
+            ln -sf "$OPENCODE_BIN" /usr/local/bin/opencode 2>/dev/null || true
+            RESULTS="${RESULTS}✓ opencode CLI 설치 완료\n"
+          else
+            RESULTS="${RESULTS}⚠ opencode CLI 설치 실패\n"
+          fi
+        fi
+        
+        # Step 3: oh-my-opencode plugin
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] oh-my-opencode 설치 중...\n\n[3/3] oh-my-opencode 플러그인..." 6 45
+        if [ "$BUN_OK" = true ]; then
+          /usr/local/bin/bun x oh-my-opencode install --no-tui --claude=no --gemini=no --copilot=no --openai=no >>"$LOG_FILE" 2>&1 || true
+          RESULTS="${RESULTS}✓ oh-my-opencode 플러그인 설치 완료\n"
+        else
+          RESULTS="${RESULTS}⚠ bun 없음 - 플러그인 설치 생략\n"
+        fi
+        RESULTS="${RESULTS}  → 인증: opencode auth login\n\n"
+        ;;
+        
+      cli_tools)
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] CLI 도구 설치 중...\n\n(fzf, ripgrep, fd, bat)" 6 40
+        apt-get install -y fzf ripgrep fd-find bat >>"$LOG_FILE" 2>&1 || true
+        ln -sf /usr/bin/fdfind /usr/local/bin/fd 2>/dev/null || true
+        ln -sf /usr/bin/batcat /usr/local/bin/bat 2>/dev/null || true
+        RESULTS="${RESULTS}✓ CLI 도구 (fzf, rg, fd, bat)\n"
+        ;;
+        
+      neovim)
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] neovim 설치 중..." 4 35
+        apt-get install -y neovim >>"$LOG_FILE" 2>&1 && RESULTS="${RESULTS}✓ neovim\n" || RESULTS="${RESULTS}⚠ neovim 실패\n"
+        ;;
+        
+      btop)
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] btop 설치 중..." 4 35
+        apt-get install -y btop >>"$LOG_FILE" 2>&1 && RESULTS="${RESULTS}✓ btop\n" || RESULTS="${RESULTS}⚠ btop 실패\n"
+        ;;
+        
+      nvtop)
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] nvtop 설치 중..." 4 35
+        apt-get install -y nvtop >>"$LOG_FILE" 2>&1 && RESULTS="${RESULTS}✓ nvtop\n" || RESULTS="${RESULTS}⚠ nvtop 실패\n"
+        ;;
+        
+      ruff)
+        $DIALOG_CMD --infobox "[$CURRENT/$TOTAL] ruff 설치 중..." 4 35
+        if command -v uv &> /dev/null; then
+          uv tool install ruff >>"$LOG_FILE" 2>&1 && RESULTS="${RESULTS}✓ ruff (uv)\n" || RESULTS="${RESULTS}⚠ ruff 실패\n"
+        else
+          pip3 install --break-system-packages ruff >>"$LOG_FILE" 2>&1 && RESULTS="${RESULTS}✓ ruff (pip)\n" || RESULTS="${RESULTS}⚠ ruff 실패\n"
+        fi
+        ;;
+    esac
+  done
+  
+  rm -f "$LOG_FILE"
+  
+  $DIALOG_CMD --clear --title " 설치 완료 " --msgbox "글로벌 패키지 설치 결과:\n\n${RESULTS}" 18 50
 }
 
 admin_auto_recovery() {
@@ -768,34 +1071,25 @@ admin_auto_recovery() {
 
 _detect_test_params() {
   TEST_GROUP=""
-  TEST_ADMIN=""
   
-  # Try to read from users.txt
   if [ -f /data/config/users.txt ]; then
     while IFS=: read -r username groupname; do
-      # Skip comments and empty lines
       [[ "$username" =~ ^#.*$ ]] && continue
       [ -z "$username" ] && continue
-      
-      # First non-comment, non-empty line
-      TEST_ADMIN="$username"
       TEST_GROUP="$groupname"
       break
     done < /data/config/users.txt
   fi
   
-  # Fallback: detect group from /data ownership
   if [ -z "$TEST_GROUP" ] && [ -d /data ]; then
     TEST_GROUP=$(stat -c %G /data 2>/dev/null || echo "")
   fi
   
-  # Final fallback
   [ -z "$TEST_GROUP" ] && TEST_GROUP="gpu-users" || true
 }
 
 _run_setup_tests() {
   local GROUP="$1"
-  local ADMIN="$2"
   
   PASS_COUNT=0
   FAIL_COUNT=0
@@ -803,11 +1097,11 @@ _run_setup_tests() {
   
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "  초기 설정 테스트"
-  echo "  그룹: $GROUP | 관리자: ${ADMIN:-(없음)}"
+  echo "  그룹: $GROUP"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
   
-  ui_step "1/6" "그룹 생성"
+  ui_step "1/5" "그룹 생성"
   if getent group "$GROUP" > /dev/null 2>&1; then
     ui_success "그룹 '$GROUP' 존재"
     ((++PASS_COUNT)) || true
@@ -817,46 +1111,7 @@ _run_setup_tests() {
   fi
   echo ""
   
-  ui_step "2/6" "관리자 계정"
-  if [ -z "$ADMIN" ]; then
-    ui_warn "관리자 미등록 (건너뜀)"
-    ((SKIP_COUNT += 4)) || true
-  else
-    if id "$ADMIN" &>/dev/null; then
-      ui_success "사용자 '$ADMIN' 존재"
-      ((++PASS_COUNT)) || true
-    else
-      ui_error "사용자 '$ADMIN' 없음"
-      ((++FAIL_COUNT)) || true
-    fi
-    
-    if id -nG "$ADMIN" 2>/dev/null | grep -qw "$GROUP"; then
-      ui_success "'$GROUP' 그룹 멤버"
-      ((++PASS_COUNT)) || true
-    else
-      ui_error "'$GROUP' 그룹 미포함"
-      ((++FAIL_COUNT)) || true
-    fi
-    
-    if [ -L "/home/$ADMIN" ] && [ "$(readlink "/home/$ADMIN")" = "/data/users/$ADMIN" ]; then
-      ui_success "/home/$ADMIN → /data/users/$ADMIN"
-      ((++PASS_COUNT)) || true
-    else
-      ui_error "/home/$ADMIN 심볼릭 링크 없음"
-      ((++FAIL_COUNT)) || true
-    fi
-    
-    if grep -q "^${ADMIN}:" /data/config/users.txt 2>/dev/null; then
-      ui_success "users.txt 등록됨"
-      ((++PASS_COUNT)) || true
-    else
-      ui_error "users.txt 미등록"
-      ((++FAIL_COUNT)) || true
-    fi
-  fi
-  echo ""
-  
-  ui_step "3/6" "저장소 권한"
+  ui_step "2/5" "저장소 권한"
   if [ -d /data ]; then
     ui_success "/data 디렉토리 존재"
     ((++PASS_COUNT)) || true
@@ -903,7 +1158,7 @@ _run_setup_tests() {
   fi
   echo ""
   
-  ui_step "4/6" "폴더 구조"
+  ui_step "3/5" "폴더 구조"
   local FOLDER_DIRS=(
     "/data/users"
     "/data/models/huggingface/hub"
@@ -923,7 +1178,7 @@ _run_setup_tests() {
   done
   echo ""
   
-  ui_step "5/6" "개발환경"
+  ui_step "4/5" "개발환경"
   if [ -x /data/apps/miniconda3/bin/conda ]; then
     ui_success "Miniconda 설치됨"
     ((++PASS_COUNT)) || true
@@ -967,7 +1222,7 @@ _run_setup_tests() {
   ui_info "pip/uv 캐시: 개인 ~/.cache 사용"
   echo ""
   
-  ui_step "6/6" "sudoers"
+  ui_step "5/5" "sudoers"
   if [ -f /etc/sudoers.d/aica-datakeeper ]; then
     ui_success "sudoers 파일 존재"
     ((++PASS_COUNT)) || true
@@ -999,7 +1254,7 @@ admin_test_config() {
   
   local LOG_FILE=$(mktemp)
   
-  _run_setup_tests "$TEST_GROUP" "$TEST_ADMIN" 2>&1 | \
+  _run_setup_tests "$TEST_GROUP" 2>&1 | \
     sed -u 's/\x1b\[[0-9;]*m//g' | \
     tee "$LOG_FILE" | \
     $DIALOG_CMD --clear --title " 초기 설정 테스트 " --progressbox 26 50 || true
@@ -1034,11 +1289,13 @@ show_admin_menu_dialog() {
   while true; do
     CHOICE=$($DIALOG_CMD --clear --backtitle "AICADataKeeper v${VERSION}" \
       --title " 관리자 메뉴 " \
-      --menu "\n작업을 선택하세요:" 14 55 5 \
+      --menu "\n작업을 선택하세요:" 16 55 7 \
       1 "초기 설정" \
       2 "설정 테스트" \
       3 "사용자 추가" \
-      4 "자동 복구" \
+      4 "사용자 삭제" \
+      5 "글로벌 패키지 설치" \
+      6 "자동 복구" \
       q "종료" \
       3>&1 1>&2 2>&3)
     
@@ -1048,7 +1305,9 @@ show_admin_menu_dialog() {
       1) admin_initial_setup ;;
       2) admin_test_config ;;
       3) admin_add_user ;;
-      4) admin_auto_recovery ;;
+      4) admin_delete_user ;;
+      5) admin_install_packages ;;
+      6) admin_auto_recovery ;;
       q) clear; exit 0 ;;
     esac
   done

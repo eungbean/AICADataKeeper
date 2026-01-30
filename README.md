@@ -1,5 +1,8 @@
 # AICADataKeeper
 
+> ⚠️ **주의**: 이 프로젝트는 참고용으로만 활용해주세요.  
+> 보안 문제나 시스템 오류에 대해서는 책임지지 않습니다.
+
 [![KR](https://img.shields.io/badge/lang-한국어-red.svg)](README.md)
 [![EN](https://img.shields.io/badge/lang-English-blue.svg)](README_eng.md)
 
@@ -9,19 +12,152 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## 프로젝트 소개
+## Overview
 
-NHN Cloud AI 서버를 위한 다중 사용자 GPU 환경 관리 시스템입니다.
+NHN Cloud AI 서버를 위한 **다중 사용자 GPU 환경 관리 시스템**입니다.
 
-**핵심 문제**: 
-- SSD 200GB (휘발성, 재부팅 시 초기화)
-- HDD 70TB (영구 저장, `/data` + `/backup`)
+### 핵심 문제
 
-**해결 방법**:
-- 사용자 홈 디렉토리를 영구 저장소로 자동 연결
-- 공유 패키지 캐시로 중복 다운로드 방지
-- AI 모델 중앙 관리로 디스크 공간 절약
-- setgid + umask 002 조합으로 안전한 권한 관리
+| 스토리지 | 용량 | 특징 |
+|---------|------|------|
+| **SSD** | 200GB | 빠름, **재부팅 시 초기화** ⚠️ |
+| **HDD (NFS)** | 70TB | 느림, **영구 저장** ✅ |
+
+**문제점**: SSD의 `/home` 디렉토리는 재부팅 시 모두 초기화됨
+
+### 해결: 하이브리드 홈 아키텍처 (v2)
+
+**핵심 아이디어**: SSD에 홈 디렉토리를 유지하되, 영구 데이터는 NFS로 심볼릭 링크
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  SSD (빠름, 휘발성)                    NFS/HDD (느림, 영구)                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  /home/alice/                          /data/                               │
+│  ├── .cache/         ← 빠른 I/O        ├── users/alice/                     │
+│  │   ├── pip/                          │   ├── dotfiles/    ← 설정 원본     │
+│  │   ├── uv/                           │   │   ├── .bashrc                  │
+│  │   └── npm/                          │   │   ├── .zshrc                   │
+│  │                                     │   │   ├── .condarc                 │
+│  ├── .bashrc ──────────────────────────│───│───┴── .ssh/                    │
+│  ├── .zshrc  ─────── 심볼릭 링크 ──────│───│                                │
+│  ├── .condarc ─────────────────────────│───┘                                │
+│  ├── .ssh/ ────────────────────────────│                                    │
+│  │                                     │   ├── conda/envs/  ← Conda 환경    │
+│  └── data/ ────────────────────────────┴───┴── projects/    ← 프로젝트      │
+│                                                                             │
+│                                        ├── cache/conda/pkgs/ ← 공유 캐시    │
+│                                        ├── models/           ← AI 모델      │
+│                                        │   ├── huggingface/                 │
+│                                        │   └── torch/                       │
+│                                        └── apps/miniconda3/  ← 공유 앱      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**심볼릭 링크 구조**:
+| 위치 (SSD) | → | 대상 (NFS) |
+|------------|---|-----------|
+| `~/.bashrc` | → | `~/data/dotfiles/.bashrc` |
+| `~/.zshrc` | → | `~/data/dotfiles/.zshrc` |
+| `~/.condarc` | → | `~/data/dotfiles/.condarc` |
+| `~/.ssh/` | → | `~/data/dotfiles/.ssh/` |
+| `~/data/` | → | `/data/users/<username>/` |
+
+**장점**:
+| 항목 | 저장 위치 | 이유 |
+|------|----------|------|
+| pip/uv/npm 캐시 | SSD (`~/.cache/`) | 작은 파일 많음, 빠른 I/O 필요 |
+| 설정 파일 (dotfiles) | NFS (심볼릭 링크) | 재부팅 후 복구 필요 |
+| Conda 환경, 프로젝트 | NFS (`~/data/`) | 대용량, 영구 저장 |
+| AI 모델 | NFS (`/data/models/`) | 대용량, 전체 공유 |
+
+### 캐시 전략
+
+| 캐시 유형 | 저장 위치 | 공유 방식 |
+|-----------|-----------|-----------|
+| **AI 모델** (HuggingFace, PyTorch) | `/data/models/` | 전체 공유 (대용량) |
+| **Conda 패키지** | `/data/cache/conda/` | 전체 공유 |
+| **pip/uv/npm** | `~/.cache/` (SSD) | 개인별 (빠른 I/O) |
+
+### 권한 관리 전략
+
+```bash
+# ❌ 절대 사용 금지
+chmod 777 /data/shared
+
+# ✅ setgid + umask 002 조합
+chmod 2775 /data/shared    # setgid: 새 파일이 그룹 상속
+umask 002                   # 새 파일 권한: 664 (rw-rw-r--)
+```
+
+| 권한 | 설명 |
+|------|------|
+| `2775` | setgid 비트 + rwxrwxr-x |
+| `umask 002` | 그룹 쓰기 권한 허용 |
+
+### 자동 복구 전략
+
+```
+재부팅 후 자동 실행 (systemd: aica-recovery.service)
+    │
+    ├── 1. Miniconda 설치/확인
+    ├── 2. 환경 변수 복원 (/etc/profile.d/)
+    ├── 3. 캐시 디렉토리 권한 복원
+    └── 4. 등록된 사용자별 복구
+        ├── v2: SSD 홈 디렉토리 생성 + dotfile 심볼릭 링크
+        └── v1: 전체 홈 심볼릭 링크 (레거시)
+```
+
+### 기술 스택
+
+| 구분 | 기술 |
+|------|------|
+| **스크립트** | Bash |
+| **TUI** | dialog |
+| **Init** | systemd (자동 복구 서비스) |
+| **패키지 관리** | Conda + uv (pip 대체, 10-100배 빠름) |
+| **권한 관리** | setgid + umask 002 (NFS v3 호환) |
+
+### 대상 환경
+
+- **OS**: Ubuntu / CentOS (Linux)
+- **규모**: 4-10명 팀 (GPU 자원 공유)
+- **용도**: AI/ML 연구 및 개발
+
+---
+
+## 메뉴 구조
+
+AICADataKeeper는 **관리자 모드**와 **사용자 모드** 두 가지로 동작합니다.
+
+### 관리자 메뉴 (`sudo ./main.sh`)
+
+```
+┌─────────────── 관리자 메뉴 ───────────────┐
+│ 1. 초기 설정                              │
+│ 2. 설정 테스트                            │
+│ 3. 사용자 추가                            │
+│ 4. 사용자 삭제                            │
+│ 5. 글로벌 패키지 설치                     │
+│ 6. 자동 복구                              │
+│ q. 종료                                   │
+└───────────────────────────────────────────┘
+```
+
+### 사용자 메뉴 (`./main.sh`)
+
+```
+┌─────────────── 사용자 메뉴 ───────────────┐
+│ 1. 환경 정보                              │
+│ 2. 디스크 사용량                          │
+│ 3. 캐시 정리                              │
+│ 4. Conda 가이드                           │
+│ 5. 도움말                                 │
+│ q. 종료                                   │
+└───────────────────────────────────────────┘
+```
 
 ---
 
@@ -48,16 +184,16 @@ sudo ./main.sh
 ### 3. 다음 단계 실행 (위자드 완료 후)
 
 ```bash
-# 관리자 계정으로 전환
-su - $ADMIN_USER
-
 # 그룹 멤버십 적용
 newgrp $GROUP_NAME
 
 # umask 설정 (필수!)
 echo "umask 002" >> ~/.bashrc
 source ~/.bashrc
-# source ~/.zshrc
+
+# 사용자 추가
+sudo ./main.sh
+# → "3. 사용자 추가" 선택
 ```
 
 ---
@@ -70,9 +206,7 @@ source ~/.bashrc
 
 ![](docs/1_menu_setup.png)
 
-### 1단계: GROUP: 그룹 생성
-
-![](docs/1_1_group.png)
+### 1단계: GROUP - 그룹 생성
 
 **목적**: 모든 사용자가 공유할 Linux 그룹 생성
 
@@ -87,46 +221,16 @@ groupadd <그룹명>           # 예: gpu-users
 
 ---
 
-### 2단계: ADMIN: 관리자 계정 설정
-
-![](docs/1_2_admin.png)
-
-**목적**: 서버 관리자 계정을 그룹에 추가하고 환경 설정
-
-**수행 작업**:
-```bash
-# 1. 관리자를 그룹에 추가
-usermod -aG <그룹명> <관리자>    # 예: usermod -aG gpu-users ubuntu
-
-# 2. 홈 디렉토리 심볼릭 링크 생성
-/home/<관리자> → /data/users/<관리자>
-
-# 3. Conda 환경 설정
-~/.condarc 생성 (공유 캐시 경로 설정)
-conda init bash
-
-# 4. 자동 복구 등록
-/data/config/users.txt에 사용자 추가
-```
-
-**결과**:
-- 관리자 홈이 `/data/users/`로 이동 (영구 저장)
-- 서버 재부팅 후 자동 복구 대상에 포함
-
----
-
-### 3단계: STORAGE: 저장소 권한 할당
-
-![](docs/1_3.png)
+### 2단계: STORAGE - 저장소 권한 할당
 
 **목적**: `/data` 및 `/backup` 디렉토리에 그룹 공유 권한 설정
 
 **수행 작업**:
 ```bash
-chown <관리자>:<그룹> /data     # 예: chown ubuntu:gpu-users /data
+chown root:<그룹> /data        # 예: chown root:gpu-users /data
 chmod 2775 /data               # setgid + rwxrwxr-x
 
-chown <관리자>:<그룹> /backup   # /backup이 있는 경우
+chown root:<그룹> /backup      # /backup이 있는 경우
 chmod 2775 /backup
 ```
 
@@ -140,7 +244,7 @@ chmod 2775 /backup
 
 ---
 
-### 4단계: FOLDERS: 폴더 구조 생성
+### 3단계: FOLDERS - 폴더 구조 생성
 
 **목적**: 필수 디렉토리 구조 생성 (setgid 권한 적용)
 
@@ -161,9 +265,7 @@ mkdir -p /data/code                       # 공유 코드
 
 ---
 
-### 5단계: ENV: 개발환경 설정
-
-![](docs/1_4.png)
+### 4단계: ENV - 개발환경 설정
 
 **목적**: Python 패키지 관리자 및 하이브리드 캐시 설정
 
@@ -175,14 +277,14 @@ mkdir -p /data/code                       # 공유 코드
 | **Conda 패키지** | 공유 `/data/cache/conda/pkgs/` | Conda가 공유 잘 지원 |
 | **pip/uv/npm 캐시** | 개인 `~/.cache/` | 권한 충돌 방지, 이미 HDD에 있음 |
 
-#### 5-1. Miniconda 설치
+#### 4-1. Miniconda 설치
 
 ```bash
 /data/apps/miniconda3/              # 공유 Miniconda 설치
 /data/cache/conda/pkgs/             # 공유 패키지 캐시 (2775)
 ```
 
-#### 5-2. uv 설치
+#### 4-2. uv 설치
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -196,7 +298,7 @@ mv ~/.local/bin/uv /usr/local/bin/uv
 uv pip install numpy pandas torch   # pip 대신 사용 (10-100배 빠름)
 ```
 
-#### 5-3. 환경 변수 설정
+#### 4-3. 환경 변수 설정
 
 **전역 환경 변수 파일**: `/etc/profile.d/global_envs.sh`
 
@@ -219,7 +321,7 @@ uv pip install numpy pandas torch   # pip 대신 사용 (10-100배 빠름)
 
 ---
 
-### 6단계: SUDO: sudoers 설정
+### 5단계: SUDOERS - sudoers 설정
 
 **목적**: 일반 사용자가 특정 관리 명령어를 비밀번호 없이 실행 가능하게 설정
 
@@ -236,19 +338,46 @@ uv pip install numpy pandas torch   # pip 대신 사용 (10-100배 빠름)
 
 ### 다음 스텝
 
-![](1_5_next_step.png)
-
 ```bash
-# 관리자 계정으로 전환
-su - $ADMIN_USER
-
 # 그룹 멤버십 적용
 newgrp $GROUP_NAME
 
 # umask 설정 (필수!)
 echo "umask 002" >> ~/.bashrc
 source ~/.bashrc
-# source ~/.zshrc
+
+# 사용자 추가
+sudo ./main.sh
+# → "3. 사용자 추가" 선택
+```
+
+---
+
+## 설정 테스트
+
+초기 설정이 제대로 완료되었는지 검증합니다.
+
+```bash
+sudo ./main.sh
+# → "2. 설정 테스트" 선택
+```
+
+### 검증 항목
+
+| 단계 | 검증 내용 | 통과 조건 |
+|------|----------|----------|
+| **1/5** | 그룹 | 그룹 존재, 멤버 1명 이상 |
+| **2/5** | 저장소 | /data 권한 2775, 그룹 소유권 |
+| **3/5** | 폴더 | users/, models/, cache/ 존재 + 2775 |
+| **4/5** | 환경 | global_envs.sh, conda 캐시, HF 캐시 2775 |
+| **5/5** | sudoers | /etc/sudoers.d/aica-datakeeper 존재 + 문법 정상 |
+
+### 결과 해석
+
+```
+✓ 통과 - 정상
+✗ 실패 - 수정 필요 (초기 설정 재실행)
+⊘ 건너뜀 - 선택 항목 (예: 관리자 계정)
 ```
 
 ---
@@ -266,33 +395,47 @@ sudo ./main.sh
 
 | 단계 | 작업 | 설명 |
 |------|------|------|
-| **1/5** | 사용자 생성 | `adduser --disabled-password` |
-| **2/5** | 그룹 추가 | 선택한 그룹에 `usermod -aG` (다중 선택 가능) |
-| **3/5** | SSH 키 설정 | 공개키 등록 또는 새 키 쌍 생성 |
-| **4/5** | 환경 설정 | 홈 디렉토리, 쉘, Conda 설정 |
-| **5/5** | 완료 | 결과 요약 및 다음 단계 안내 |
+| **1/6** | 사용자 생성 | `adduser --disabled-password` |
+| **2/6** | 그룹 추가 | 선택한 그룹에 `usermod -aG` (다중 선택 가능) |
+| **3/6** | SSH 키 설정 | 공개키 등록 또는 새 키 쌍 생성 |
+| **4/6** | 쉘 선택 | bash / zsh-minimal / zsh-full / 건너뛰기 |
+| **5/6** | 환경 설정 | 홈 디렉토리, 쉘, Conda 설정 |
+| **6/6** | 완료 | 결과 요약 및 다음 단계 안내 |
 
 ### 자동 수행 작업
 
 ```
-[1/5] 사용자 생성
+[1/6] 사용자 생성
   ✓ Linux 사용자 생성 (adduser)
 
-[2/5] 그룹 추가
+[2/6] 그룹 추가
   ✓ 선택한 그룹에 추가 (usermod -aG)
 
-[3/5] SSH 키 설정
+[3/6] SSH 키 설정
   → 공개키 등록 / 새 키 생성 / 건너뛰기
 
-[4/5] 환경 설정
+[4/6] 쉘 선택
+  → bash / zsh-minimal / zsh-full / 건너뛰기
+
+[5/6] 환경 설정
   ✓ 홈 디렉토리 심볼릭 링크 (/home/user → /data/users/user)
   ✓ .hpcrc 복사 (alias, umask 설정)
+  ✓ 쉘 환경 설정 (bash/zsh, oh-my-zsh)
   ✓ Conda 환경 설정 (.condarc, conda init)
   ✓ 권한 설정 (chown)
 
-[5/5] 완료
+[6/6] 완료
   ✓ 사용자 설정 완료
 ```
+
+### 쉘 옵션
+
+| 옵션 | 설명 |
+|------|------|
+| **bash** | Bash 쉘 (기본) |
+| **zsh-minimal** | Zsh + oh-my-zsh (minimal plugins) |
+| **zsh-full** | Zsh + oh-my-zsh + autosuggestions + syntax-highlighting |
+| **건너뛰기** | bash로 설정 |
 
 ### SSH 키 옵션
 
@@ -319,20 +462,135 @@ sudo ./main.sh
 사용자 추가 완료 후 아래 정보를 사용자에게 전달하세요:
 
 ```bash
-# 1. SSH 접속
-ssh -i <개인키> username@<서버IP>
+# 1. 초기 비밀번호: 0000
+#    ※ 첫 로그인 시 새 비밀번호로 변경 필수
+#    ※ 비밀번호 변경 후 자동으로 접속 종료됨 (재접속 필요)
 
-# 2. 비밀번호 설정 (sudo 사용 시 필요)
-passwd
+# 2. SSH 첫 접속
+ssh username@<서버IP>
+# Old Password: 0000
+# New Password: (새 비밀번호 입력)
+# Retype New Password: (새 비밀번호 재입력)
+# → 비밀번호 변경 완료 후 자동 로그아웃
 
-# 3. 사용자 정보 등록 (선택)
+# 3. 비밀번호 변경 후 재접속
+ssh username@<서버IP>
+# Password: (새 비밀번호)
+
+# 4. 사용자 정보 등록 (선택)
 chfn
 
-# 4. 공유 권한 설정 (필수!)
-echo "umask 002" >> ~/.bashrc && source ~/.bashrc
+# 5. 환경 설정 적용 (재로그인 또는 아래 실행)
+source ~/.bashrc
 ```
 
-> **참고**: 비밀번호 없이 생성되므로, sudo가 필요한 경우 관리자가 `sudo passwd <username>`으로 설정하거나 사용자가 직접 `passwd` 실행
+> **참고**: 초기 비밀번호는 `0000`이며, 첫 로그인 시 변경이 강제됩니다. 변경 후 자동으로 접속이 종료되므로 재접속하세요.
+
+> **참고**: `umask 002`는 `.hpcrc`에 설정되어 있고, `.bashrc`에서 자동으로 로드됩니다.
+
+---
+
+## 글로벌 패키지 설치
+
+모든 사용자가 공유하는 개발 도구를 글로벌로 설치합니다.
+
+```bash
+sudo ./main.sh
+# → "5. 글로벌 패키지 설치" 선택
+```
+
+### 설치 가능한 패키지
+
+| 패키지 | 설명 |
+|--------|------|
+| **oh-my-opencode** | AI 코딩 어시스턴트 (bun + opencode + oh-my-opencode 플러그인) |
+| **CLI 도구** | fzf, ripgrep, fd, bat |
+| **neovim** | 현대적 vim 에디터 |
+| **btop** | 시스템 모니터 |
+| **nvtop** | GPU 모니터 |
+| **ruff** | 빠른 Python 린터 |
+
+> **참고**: zsh는 사용자 추가 시 개인별로 설정 가능합니다 (4단계: 쉘 선택).
+
+**oh-my-opencode 설치 과정**:
+1. bun 설치 (JavaScript 런타임)
+2. opencode CLI 설치 (Claude Code CLI)
+3. oh-my-opencode 플러그인 설치
+4. 사용자별 인증 설정: `opencode auth login`
+
+**설치 위치**:
+- 바이너리: `/usr/local/bin/`
+- opencode: `~/.opencode/bin/opencode`
+- 설정 파일: `~/.config/opencode/opencode.json`
+- 플러그인: `~/.config/opencode/oh-my-opencode.json`
+
+---
+
+## 사용자 삭제
+
+```bash
+sudo ./main.sh
+# → "4. 사용자 삭제" 선택
+```
+
+### 삭제 과정
+
+1. 삭제할 사용자 선택 (목록에서)
+2. **경고 메시지 확인**: 사용자 정보, 데이터 크기, 소속 그룹 표시
+3. 홈 디렉토리 삭제 여부 선택
+4. **최종 확인**: 사용자명 직접 입력 (오타 방지)
+5. 삭제 수행
+
+### 삭제되는 항목
+
+| 항목 | 설명 |
+|------|------|
+| Linux 사용자 | `userdel <username>` |
+| 자동 복구 목록 | `/data/config/users.txt`에서 제거 |
+| 홈 심볼릭 링크 | `/home/<username>` 제거 |
+| 홈 디렉토리 (선택) | `/data/users/<username>` 삭제 |
+
+> ⚠️ **주의**: 홈 디렉토리 삭제는 되돌릴 수 없습니다!
+
+---
+
+## 자동 복구
+
+재부팅 후 환경을 자동으로 복원하는 systemd 서비스를 관리합니다.
+
+```bash
+sudo ./main.sh
+# → "6. 자동 복구" 선택
+```
+
+### 관리 옵션
+
+| 옵션 | 설명 |
+|------|------|
+| **활성화** | systemd 서비스 시작 + 부팅 시 자동 실행 |
+| **비활성화** | systemd 서비스 중지 + 자동 실행 해제 |
+| **상태 확인** | 서비스 실행 상태 및 최근 로그 확인 |
+| **수동 실행** | 즉시 복구 스크립트 실행 (테스트용) |
+
+### 복구 과정
+
+재부팅 후 `aica-recovery.service`가 자동 실행:
+
+```
+1. Miniconda 설치/확인 (/data/apps/miniconda3)
+2. 환경 변수 복원 (/etc/profile.d/global_envs.sh)
+3. 캐시 디렉토리 권한 복원 (2775)
+4. 등록된 사용자별:
+   - 홈 디렉토리 심볼릭 링크 복원
+   - Conda 설정 복원
+   - 파일 권한 수정
+```
+
+### 서비스 파일 위치
+
+- 서비스 파일: `/etc/systemd/system/aica-recovery.service`
+- 복구 스크립트: `/data/AICADataKeeper/scripts/ops-recovery.sh`
+- 사용자 목록: `/data/config/users.txt`
 
 ---
 
@@ -366,8 +624,58 @@ echo "umask 002" >> ~/.bashrc && source ~/.bashrc
 
 ## 일반 사용자 가이드
 
-### Conda 환경 사용
+일반 사용자(sudo 권한 없음)는 `./main.sh`로 사용자 메뉴에 접근합니다.
 
+```bash
+./main.sh
+```
+
+### 1. 환경 정보
+
+현재 사용자의 환경 설정을 확인합니다.
+
+**표시 내용**:
+- 홈 디렉토리: 심볼릭 링크 상태 (/home/user → /data/users/user)
+- 환경 변수: HF_HOME, TORCH_HOME, CONDA_PKGS_DIRS 등
+- Conda: 버전, 활성 환경, 내 환경 목록
+
+**활용**: 환경 변수가 제대로 설정되었는지 확인
+
+---
+
+### 2. 디스크 사용량
+
+`/data` 파티션 및 캐시 사용량 확인
+
+**표시 내용**:
+- /data 전체 디스크 사용량 (`df -h`)
+- 캐시별 사용량 (conda, models)
+- 내 홈 디렉토리 크기
+
+**활용**: 디스크 공간 부족 시 어느 캐시가 큰지 파악
+
+---
+
+### 3. 캐시 정리
+
+공유 캐시를 정리합니다 (다른 사용자에게 영향 줄 수 있음).
+
+**정리 옵션**:
+- Conda: `conda clean --all`
+- Pip: pip 캐시 삭제
+- PyTorch: torch 모델 캐시 삭제
+- HuggingFace: HF 모델/데이터셋 캐시 삭제
+- 전체: 모든 캐시 삭제
+
+> ⚠️ **주의**: 공유 캐시 삭제 시 다른 사용자도 재다운로드 필요
+
+---
+
+### 4. Conda 가이드
+
+Conda 환경 관리 명령어 안내
+
+**기본 명령어**:
 ```bash
 # 새 환경 생성
 conda create -n myenv python=3.10
@@ -378,38 +686,60 @@ conda install numpy pandas scikit-learn
 
 # 환경 목록 확인
 conda env list
+
+# 환경 삭제
+conda env remove -n myenv
 ```
 
-### 패키지 설치 (uv 권장)
+---
+
+### 5. 도움말
+
+주요 명령어 및 디렉토리 경로 참고
+
+**표시 내용**:
+- Conda 기본 명령어
+- 패키지 설치 (pip, uv)
+- 디스크 확인
+- 캐시 위치
+
+---
+
+## 추가 사용 팁
+
+### uv로 패키지 설치 (pip보다 10-100배 빠름)
 
 ```bash
-# uv 사용 (10-100배 빠름)
+# uv 사용 (권장)
 uv pip install torch torchvision transformers
 
 # 또는 pip 사용
 pip install torch torchvision transformers
 ```
 
-### 디스크 사용량 확인
+### AI 모델 다운로드 시 자동 공유
 
-```bash
-# 위자드에서 확인
-./main.sh
-# → "2. 디스크 사용량" 선택
+```python
+# HuggingFace 모델 - 자동으로 /data/models/huggingface/에 저장
+from transformers import AutoModel
+model = AutoModel.from_pretrained("bert-base-uncased")
 
-# 또는 직접 확인
-df -h /data
-du -sh /data/cache/*
+# PyTorch Hub 모델 - 자동으로 /data/models/torch/에 저장
+import torch
+model = torch.hub.load('pytorch/vision', 'resnet50')
 ```
+
+다른 사용자가 같은 모델을 사용하면 재다운로드 없이 공유 캐시 사용.
 
 ---
 
 ## 중요 사항
 
-### 필수: umask 002 설정
+### umask 002 설정
 
-모든 사용자가 아래 명령어를 실행해야 합니다:
+**신규 사용자**: main.sh로 추가된 사용자는 자동 설정됩니다 (`.hpcrc` → `.bashrc`에서 로드).
 
+**기존 사용자/관리자**: 수동 설정이 필요합니다:
 ```bash
 echo "umask 002" >> ~/.bashrc
 source ~/.bashrc

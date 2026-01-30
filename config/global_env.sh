@@ -32,3 +32,5 @@ export PATH="$HOME/.bun/bin:$PATH"
 # 참고: pip, uv, npm, yarn 캐시는 설정하지 않음
 # → 기본값 ~/.cache 사용 (이미 /data/users/$USER/.cache에 있음)
 # → 사용자별 격리로 권한 충돌 방지
+# Opencode CLI (글로벌 설치)
+export PATH="/data/apps/opencode/bin:$PATH"

@@ -1,12 +1,12 @@
 # Scripts Directory - Execution Flow Reference
 
-**Generated:** 2026-01-29 12:51  
-**Commit:** `5f8e1f9`  
+**Generated:** 2026-01-30 17:06  
+**Commit:** `90bf389`  
 **Branch:** `main`
 
 ## Overview
 
-16 bash scripts implementing GPU server environment automation. Numbered scripts (1-5) = dependency chain. Named scripts = orchestrators/utilities.
+23 bash scripts implementing GPU server environment automation. Supports v1 (full symlink) and v2 (hybrid SSD+NFS) architectures. Numbered scripts (1-5) = dependency chain. Named scripts = orchestrators/utilities.
 
 ## Execution Patterns
 
@@ -25,23 +25,30 @@ user-fix-permissions.sh        → chown user:group recursively
 - `ops-setup-global.sh` → Calls 1, 2 (post-reboot recovery)
 - `user-setup.sh` → Calls 3, 4, 5 (user onboarding/recovery)
 - `ops-recovery.sh` → Calls setup_global + setup_new_user for each user in users.txt
-- `admin-wizard.sh` → **DEPRECATED** (replaced by `/data/AICADataKeeper/main.sh`)
+
+### V2 Architecture Scripts (Hybrid SSD+NFS)
+- `user-create-home-v2.sh` → Create /home/<user> on SSD + /data/users/<user>/dotfiles on NFS
+- `user-setup-dotfiles.sh` → Setup dotfile symlinks for v2 architecture
+- `migrate-user-home.sh` → Migrate users from v1 (full symlink) to v2 (hybrid)
 
 ### Utilities (Standalone)
 - `user-register.sh` → Add to users.txt (auto-recovery registry)
+- `user-setup-shell.sh` → Configure bash/zsh + oh-my-zsh
 - `ops-clean-cache.sh` → Cleanup conda/pip/torch/hf caches
 - `ops-disk-alert.sh` → Monitor /data partition usage
 - `system-permissions.sh` → Apply setgid to shared directories
 - `system-sudoers.sh` → Configure selective NOPASSWD for gpu-users
 - `system-cache-config.sh` → Create /etc/{conda/.condarc,pip.conf,npmrc}
 - `install-uv.sh` → Install uv package manager
+- `install-bun.sh` → Install bun JavaScript runtime
+- `verify-global-env.sh` → Verify global environment setup
+- `install-recovery-check.sh` → Create /etc/profile.d/00-recovery-check.sh
 
 ## Entry Points
 
 | User Type | Command | Purpose |
 |-----------|---------|---------|
 | **Admin (interactive)** | `sudo ../main.sh` | **PRIMARY**: TUI menu for all tasks |
-| **Admin (interactive, DEPRECATED)** | `sudo admin-wizard.sh` | Legacy TUI (use main.sh) |
 | **Admin (post-reboot)** | `sudo ops-setup-global.sh` | Restore global environment |
 | **Admin (new user)** | `sudo user-setup.sh <user> <group>` | Onboard user |
 | **Admin (register user)** | `sudo user-register.sh <user> <group>` | Add to auto-recovery |
@@ -109,13 +116,14 @@ fi
 
 ### Wrapper vs. Atomic
 **Wrappers** (call other scripts):
-- ops-setup-global.sh
-- user-setup.sh
-- ops-recovery.sh
-- admin-wizard.sh
+- ops-setup-global.sh → Calls [01], [02]
+- user-setup.sh → Calls [03], [04-1], [04], [05]
+- ops-recovery.sh → Calls ops-setup-global.sh + (user-setup.sh OR v2 scripts per user)
+- migrate-user-home.sh → Calls user-create-home-v2.sh + user-setup-dotfiles.sh
 
 **Atomic** (standalone, no script calls):
 - All numbered scripts (1-5)
+- All v2 architecture scripts (user-create-home-v2.sh, user-setup-dotfiles.sh)
 - All utility scripts
 
 ### Script Directory Reference
@@ -180,13 +188,24 @@ umask  # Should be 0002
 visudo -c -f /etc/sudoers.d/aica-datakeeper
 ```
 
+## Architecture Detection
+
+`ops-recovery.sh` supports two home architectures:
+
+**V1 (Full Symlink)**: `/home/<user>` → `/data/users/<user>`
+- Uses: user-setup.sh → [03], [04-1], [04], [05]
+
+**V2 (Hybrid SSD+NFS)**: `/home/<user>` on SSD, dotfiles on `/data/users/<user>/dotfiles`
+- Uses: user-create-home-v2.sh + user-setup-dotfiles.sh
+- Detection: Checks for `/data/users/<user>/dotfiles` directory
+
 ## Notes
 
 - **Numbered scripts NOT meant for direct execution** (called by wrappers)
 - All scripts must be idempotent (safe to run multiple times)
 - Script 3 backs up existing directories before symlinking
 - ops-recovery.sh reads users.txt line-by-line (format: `username:groupname`)
-- **admin-wizard.sh is DEPRECATED** → Use `/data/AICADataKeeper/main.sh` instead
+- ops-recovery.sh auto-detects v1 vs v2 architecture per user
 - **NEVER modify script execution order** → Breaking numbered sequence causes failures
 
 ## Critical Reminders

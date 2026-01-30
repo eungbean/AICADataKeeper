@@ -78,6 +78,15 @@ install_oh_my_zsh() {
     exit 1
   }
   
+  chmod -R go-w "$omz_dir"
+  chown -R "$USERNAME:$GROUPNAME" "$omz_dir"
+  
+  local zshrc="$USER_DATA/.zshrc"
+  if [ -f "$zshrc" ] && ! grep -q "ZSH_DISABLE_COMPFIX" "$zshrc"; then
+    sed -i '1i export ZSH_DISABLE_COMPFIX="true"' "$zshrc"
+    chown "$USERNAME:$GROUPNAME" "$zshrc"
+  fi
+  
   echo "[INFO] oh-my-zsh 설치 완료"
 }
 
@@ -100,6 +109,9 @@ install_zsh_plugins() {
       echo "[WARNING] zsh-syntax-highlighting 설치 실패"
     }
   fi
+  
+  chmod -R go-w "$custom_dir"
+  chown -R "$USERNAME:$GROUPNAME" "$custom_dir"
   
   echo "[INFO] zsh 플러그인 설치 완료"
 }

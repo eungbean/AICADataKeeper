@@ -215,25 +215,23 @@ Menu-based TUI integrating all setup tasks.
 
 #### Run
 ```bash
-sudo /data/scripts/admin-wizard.sh
+sudo ./main.sh
 ```
 
-#### Menu Items
-1. Install Global Environment
-2. Add New User
-3. Setup Permissions
-4. Configure Auto-Recovery
-5. Test Configuration
-6. Setup Cache Config
-7. Setup uv
-8. Exit
+#### Admin Menu Items
+1. Initial Setup (Group, Storage, Folders, Env, Sudoers)
+2. Configuration Test
+3. Add New User
+4. Delete User
+5. Install Global Packages
+6. Auto Recovery Management
 
-#### List Options (For Testing)
-```bash
-/data/scripts/admin-wizard.sh --list-options
-```
-
-**Note**: Automatically falls back to text menu if dialog/whiptail not available.
+#### User Menu Items
+1. Environment Info
+2. Disk Usage
+3. Cache Cleanup
+4. Conda Guide
+5. Help
 
 ## 📚 Scenario-Based Guides
 

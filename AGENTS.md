@@ -2,11 +2,11 @@
 
 ## Reference Resources
 
-**OpenCode UI Theme Reference** (for TUI styling):
-- Theme files: `/data/AICADataKeeper/opencode/packages/ui/src/theme/themes/`
+**Claude Code UI Theme Reference** (for TUI styling):
+- Theme files: `/data/AICADataKeeper/Claude/packages/ui/src/theme/themes/`
 - Main theme: `oc-1.json` (OC-1 dark/light)
-- Color utilities: `/data/AICADataKeeper/opencode/packages/ui/src/theme/color.ts`
-- TUI components: `/data/AICADataKeeper/opencode/packages/opencode/src/cli/cmd/tui/ui/`
+- Color utilities: `/data/AICADataKeeper/Claude/packages/ui/src/theme/color.ts`
+- TUI components: `/data/AICADataKeeper/Claude/packages/Claude/src/cli/cmd/tui/ui/`
 
 ---
 
@@ -60,7 +60,7 @@ AICADataKeeper is a multi-user GPU server environment management system designed
 - `ops-setup-global.sh` → Post-reboot global environment setup
 - `user-setup.sh` → User onboarding wrapper
 
-**Note**: `admin-wizard.sh` is deprecated and replaced by `main.sh`.
+
 
 ---
 
@@ -393,7 +393,6 @@ done
 
 ### Script Execution
 - **DO NOT run numbered scripts directly** → They're called by wrappers (ops-setup-global.sh, user-setup.sh)
-- **DO NOT use `admin-wizard.sh`** → Deprecated, use `main.sh` instead
 
 ### Deprecated Patterns (v2.0.0)
 - ~~`chmod 777`~~ → Use setgid + umask 002
