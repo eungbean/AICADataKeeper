@@ -139,3 +139,6 @@ temp/
 .gnupg/
 .pgp/
 .gpg/tmp/
+
+# NFS lock files
+.nfs*
