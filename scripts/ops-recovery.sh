@@ -25,6 +25,17 @@ log_message() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $MESSAGE" | tee -a "$LOG_FILE"
 }
 
+detect_architecture() {
+    local username="$1"
+    local dotfiles_dir="/data/users/$username/dotfiles"
+    
+    if [ -d "$dotfiles_dir" ]; then
+        echo "v2"  # New hybrid architecture
+    else
+        echo "v1"  # Old full symlink architecture
+    fi
+}
+
 log_message "========== AICA DataKeeper Auto Recovery Started =========="
 
 if [ "$DRY_RUN" = true ]; then
@@ -67,18 +78,37 @@ grep -v "^#" "$USERS_FILE" | grep -v "^$" | while IFS=: read -r USERNAME GROUPNA
     continue
   fi
   
-  log_message "사용자 복구 중: $USERNAME:$GROUPNAME"
+  # Detect user architecture
+  ARCH=$(detect_architecture "$USERNAME")
   
-  if "$SCRIPT_DIR/user-setup.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1; then
-    log_message "사용자 $USERNAME 복구 완료"
-    RECOVERY_COUNT=$((RECOVERY_COUNT + 1))
+  if [ "$ARCH" = "v2" ]; then
+    log_message "사용자 $USERNAME 복구 중 (v2 아키텍처)..."
+    if "$SCRIPT_DIR/user-create-home-v2.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1 &&
+       "$SCRIPT_DIR/user-setup-dotfiles.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1; then
+      log_message "사용자 $USERNAME 복구 완료 (v2)"
+      RECOVERY_COUNT=$((RECOVERY_COUNT + 1))
+    else
+      log_message "[ERROR] 사용자 $USERNAME 복구 실패 (v2, exit code: $?)"
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
   else
-    log_message "[ERROR] 사용자 $USERNAME 복구 실패 (exit code: $?)"
-    FAILED_COUNT=$((FAILED_COUNT + 1))
+    log_message "사용자 $USERNAME 복구 중 (v1 아키텍처)..."
+    if "$SCRIPT_DIR/user-setup.sh" "$USERNAME" "$GROUPNAME" >> "$LOG_FILE" 2>&1; then
+      log_message "사용자 $USERNAME 복구 완료 (v1)"
+      RECOVERY_COUNT=$((RECOVERY_COUNT + 1))
+    else
+      log_message "[ERROR] 사용자 $USERNAME 복구 실패 (v1, exit code: $?)"
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
   fi
 done
 
 log_message "Step 2: 사용자 복구 완료 (성공: $RECOVERY_COUNT, 실패: $FAILED_COUNT)"
+
+# Create recovery complete flag for race condition prevention
+touch /tmp/recovery-complete
+log_message "Recovery complete flag created: /tmp/recovery-complete"
+
 log_message "========== AICA DataKeeper Auto Recovery Completed =========="
 
 if [ $FAILED_COUNT -gt 0 ]; then

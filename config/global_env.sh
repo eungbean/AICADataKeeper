@@ -23,6 +23,12 @@ export FLUX_HOME="/data/models/flux"
 # 기타 공유 경로
 export DATASET_DIR="/data/dataset"
 
+# Bun (NFS 홈 환경 호환)
+# - BUN_INSTALL_CACHE_DIR: 캐시를 로컬 디스크로 두어 BunInstallFailedError 방지 (BUN_REPORT.md 참고)
+# - PATH: 사용자가 ~/.bun/bin에 Bun을 설치한 경우 자동으로 인식
+export BUN_INSTALL_CACHE_DIR="${BUN_INSTALL_CACHE_DIR:-/tmp/bun-install-cache-$USER}"
+export PATH="$HOME/.bun/bin:$PATH"
+
 # 참고: pip, uv, npm, yarn 캐시는 설정하지 않음
 # → 기본값 ~/.cache 사용 (이미 /data/users/$USER/.cache에 있음)
 # → 사용자별 격리로 권한 충돌 방지
