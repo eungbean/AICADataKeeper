@@ -10,7 +10,7 @@ USER_DOTFILES="$USER_DATA/dotfiles"
 CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
 
 DOTFILES=(".bashrc" ".zshrc" ".profile" ".condarc" ".hpcrc" ".gitconfig" ".vimrc" ".tmux.conf")
-DOTDIRS=(".ssh")
+DOTDIRS=(".ssh" ".oh-my-zsh")
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "[ERROR] This script requires root privileges."

@@ -10,6 +10,7 @@ GROUPNAME=${3:-gpu-users}
 
 USER_HOME="/home/$USERNAME"
 USER_DATA="/data/users/$USERNAME"
+USER_DOTFILES="$USER_DATA/dotfiles"
 CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
 
 # Root 권한 확인
@@ -61,9 +62,8 @@ install_zsh_if_needed() {
   fi
 }
 
-# Helper: oh-my-zsh 설치
 install_oh_my_zsh() {
-  local omz_dir="$USER_DATA/.oh-my-zsh"
+  local omz_dir="$USER_DOTFILES/.oh-my-zsh"
   
   if [ -d "$omz_dir" ]; then
     echo "[INFO] oh-my-zsh이 이미 설치되어 있습니다"
@@ -71,9 +71,10 @@ install_oh_my_zsh() {
   fi
   
   echo "[INFO] oh-my-zsh 설치 중..."
+  mkdir -p "$USER_DOTFILES"
   
-  # oh-my-zsh 설치 (비대화형)
-  sudo -u "$USERNAME" sh -c 'RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"' 2>/dev/null || {
+  export ZSH="$omz_dir"
+  sudo -u "$USERNAME" ZSH="$omz_dir" sh -c 'RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"' 2>/dev/null || {
     echo "[ERROR] oh-my-zsh 설치 실패"
     exit 1
   }
@@ -81,18 +82,21 @@ install_oh_my_zsh() {
   chmod -R go-w "$omz_dir"
   chown -R "$USERNAME:$GROUPNAME" "$omz_dir"
   
-  local zshrc="$USER_DATA/.zshrc"
-  if [ -f "$zshrc" ] && ! grep -q "ZSH_DISABLE_COMPFIX" "$zshrc"; then
-    sed -i '1i export ZSH_DISABLE_COMPFIX="true"' "$zshrc"
-    chown "$USERNAME:$GROUPNAME" "$zshrc"
+  if [ -f "$ZSHRC" ] && ! grep -q "ZSH_DISABLE_COMPFIX" "$ZSHRC"; then
+    sed -i '1i export ZSH_DISABLE_COMPFIX="true"' "$ZSHRC"
+    chown "$USERNAME:$GROUPNAME" "$ZSHRC"
   fi
   
-  echo "[INFO] oh-my-zsh 설치 완료"
+  if [ ! -L "$USER_HOME/.oh-my-zsh" ]; then
+    ln -sf "$omz_dir" "$USER_HOME/.oh-my-zsh"
+    echo "[INFO] ~/.oh-my-zsh 심볼릭 링크 생성"
+  fi
+  
+  echo "[INFO] oh-my-zsh 설치 완료: $omz_dir"
 }
 
-# Helper: zsh 플러그인 설치
 install_zsh_plugins() {
-  local custom_dir="$USER_DATA/.oh-my-zsh/custom/plugins"
+  local custom_dir="$USER_DOTFILES/.oh-my-zsh/custom/plugins"
   
   echo "[INFO] zsh 플러그인 설치 중..."
   
@@ -118,29 +122,29 @@ install_zsh_plugins() {
 
 # Helper: .zshrc 설정 (플러그인 활성화)
 configure_zshrc() {
-  local zshrc="$USER_DATA/.zshrc"
-  
-  if [ ! -f "$zshrc" ]; then
-    echo "[ERROR] .zshrc 파일이 없습니다: $zshrc"
+  if [ ! -f "$ZSHRC" ]; then
+    echo "[ERROR] .zshrc 파일이 없습니다: $ZSHRC"
     exit 1
   fi
   
   # 플러그인 설정 (기존 plugins 라인 찾아서 수정)
-  if grep -q "^plugins=" "$zshrc"; then
+  if grep -q "^plugins=" "$ZSHRC"; then
     # 기존 plugins 라인 수정
-    sudo -u "$USERNAME" sed -i 's/^plugins=.*/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$zshrc"
+    sudo -u "$USERNAME" sed -i 's/^plugins=.*/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
   else
     # plugins 라인 추가
-    sudo -u "$USERNAME" sed -i '/^ZSH=/a plugins=(git zsh-autosuggestions zsh-syntax-highlighting)' "$zshrc"
+    sudo -u "$USERNAME" sed -i '/^ZSH=/a plugins=(git zsh-autosuggestions zsh-syntax-highlighting)' "$ZSHRC"
   fi
   
-  chown "$USERNAME:$GROUPNAME" "$zshrc"
+  chown "$USERNAME:$GROUPNAME" "$ZSHRC"
   echo "[INFO] .zshrc 플러그인 설정 완료"
 }
 
-# Helper: .hpcrc 복사
 copy_hpcrc() {
-  local target_hpcrc="$USER_DATA/.hpcrc"
+  local target_hpcrc="$USER_DOTFILES/.hpcrc"
+  
+  mkdir -p "$USER_DOTFILES"
+  chown "$USERNAME:$GROUPNAME" "$USER_DOTFILES"
   
   if [ ! -f "$target_hpcrc" ]; then
     cp "$CONFIG_DIR/.hpcrc" "$target_hpcrc" || {
@@ -148,7 +152,7 @@ copy_hpcrc() {
       exit 1
     }
     chown "$USERNAME:$GROUPNAME" "$target_hpcrc"
-    echo "[INFO] .hpcrc 복사 완료"
+    echo "[INFO] .hpcrc 복사 완료: $target_hpcrc"
   else
     echo "[INFO] .hpcrc이 이미 존재합니다"
   fi
@@ -203,8 +207,8 @@ echo "[INFO] 사용자 $USERNAME의 쉘 환경 설정 시작 (선택: $SHELL_CHO
 # .hpcrc 복사 (모든 경우)
 copy_hpcrc
 
-BASHRC="$USER_DATA/.bashrc"
-ZSHRC="$USER_DATA/.zshrc"
+BASHRC="$USER_DOTFILES/.bashrc"
+ZSHRC="$USER_DOTFILES/.zshrc"
 
 case "$SHELL_CHOICE" in
   bash)
